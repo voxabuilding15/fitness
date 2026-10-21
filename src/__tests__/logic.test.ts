@@ -1,7 +1,6 @@
 import en from '../locales/en.json';
 import ar from '../locales/ar.json';
 import { WORKOUTS, TODAYS_WORKOUT_ID, getWorkout } from '../data/workouts';
-import { average, buildSeries, defaultSelectedIndex, statusFor } from '../services/activityService';
 import { DEMO_PROFILE, toDraft, validateDraft } from '../services/profileService';
 import { adjustForLevel, formatClock, matches } from '../services/workoutService';
 import { initialSession, reduceSession } from '../services/workoutSession';
@@ -30,30 +29,6 @@ describe('locales', () => {
     const e = flat(en);
     const a = flat(ar);
     for (const k of Object.keys(e)) expect([k, ph(a[k])]).toEqual([k, ph(e[k])]);
-  });
-});
-
-describe('activity data', () => {
-  it('this-week step average matches the design (5,400) and is computed from the points', () => {
-    const s = buildSeries('steps', 'thisWeek');
-    expect(s.points.map((p) => p.labelKey)).toEqual(['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri']);
-    expect(s.average).toBe(5400);
-    expect(s.average).toBe(average(s.points.map((p) => p.value)));
-    expect(s.isDemo).toBe(true);
-  });
-  it('changes with metric and period', () => {
-    expect(buildSeries('steps', 'lastWeek').average).not.toBe(buildSeries('steps', 'thisWeek').average);
-    expect(buildSeries('heartRate', 'thisWeek').points[4].value).toBe(92);
-    expect(buildSeries('steps', 'thisMonth').points).toHaveLength(4);
-    const reg = buildSeries('regularity', 'thisWeek');
-    expect(Math.max(...reg.points.map((p) => p.value))).toBeLessThanOrEqual(100);
-  });
-  it('picks sensible default selection and status', () => {
-    expect(defaultSelectedIndex('thisWeek')).toBe(4);
-    expect(defaultSelectedIndex('thisMonth')).toBe(3);
-    expect(statusFor(5400, 7000)).toBe('good');
-    expect(statusFor(312, 450)).toBe('average');
-    expect(statusFor(100, 450)).toBe('low');
   });
 });
 

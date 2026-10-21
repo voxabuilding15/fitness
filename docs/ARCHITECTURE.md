@@ -98,9 +98,8 @@ directional icons are swapped by `Icon`, absolute end-offsets use `endInset`. Ve
 renderer only; not yet verified on a physical device.
 
 **What is real vs sample today:**
-- Real: language, profile, settings, reminders, workout-session timer logic.
-- Sample / hard-coded (clearly labelled "Demo data" in the UI): Today's stats (Home),
-  heart-rate / calories / duration cards, per-workout calorie and minute figures, "Regularity".
+- Real: language, profile, goals, settings, reminders, the exercise library, saved workouts, workout sessions and history, the Statistics screen and the Home screen's weekly totals, workout card and search (sections 5e-5k).
+- Sample / hard-coded (labelled as demo where shown): the demo workout cards on the Workouts tab and the demo workout player (`/workout/[id]`, `data/workouts.ts`, per-workout calorie and minute figures).
 
 **Tests today:** Jest. Services, locales and the whole data layer are tested; screens, components, hooks and the React
 contexts have **no** automated tests (0% coverage). Coverage numbers are informational only.
@@ -375,6 +374,14 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 **Data.** One new read-only repository method, `sessions.dailyActivity(range)`: two small aggregates over `status = 'completed'` sessions (sessions per local day, then sets per local day), merged by day so a day's workouts are never multiplied by their sets. Working sets only: completed and not warm-up. Volume is the sum of `weight_kg x reps` over sets that have both; timed and reps-only sets add sets and reps but no volume. Minutes are `ended_at - started_at`. Discarded and in-progress sessions can't contribute (also tested at the screen level). No migration. `domain/statistics.ts` is pure: weeks start on Saturday (the chart's day labels), a month is split into days 1-7, 8-14, 15-21 and 22-end; `hooks/useStatistics.ts` re-reads on focus and when the period changes.
 
 **Not included / still demo.** Steps, heart rate, calories and "regularity" are gone from this screen because the app has no real source for them. The Home screen's "Today" tiles still use the bundled sample provider in `services/activityService.ts` (labelled demo). No personal records, trends over longer periods, nutrition or body-weight charts. **Tested (Node, mocks):** the period/bucket logic, the aggregate query (completed only, warm-ups excluded, several workouts per day, range, validation, agreement with `countCompleted`) and the screen. **Not verified on a device:** native SQLite, chart rendering, screen-reader output, RTL layout.
+
+## 5k. Phase 4 - milestone 4.5: Home from saved data
+
+**What it is.** Home no longer shows sample steps / calories / distance tiles or the bundled "today's workout". `hooks/useHome.ts` reads, when the screen is focused: `sessions.dailyActivity` for this week so far, the saved goals, the workout in progress, the saved workouts and the exercise library. Three tiles show real numbers: workouts finished this week (with "of N" and a status badge only when a weekly workout goal is saved; no goal means no target and no badge), time trained today, and weight lifted today. The "Your workout" card offers Resume for a workout in progress, otherwise the newest saved workout (opens its detail, where Start lives), otherwise an invitation to create one. Search looks through saved workout names and library exercises (hidden ones excluded, by displayed name, Arabic-aware) and opens `/templates/[id]` or `/exercises/[id]`. No migration and no new repository method (it reuses `dailyActivity` from 5j).
+
+**Honesty rules.** Only completed sessions count; an empty week shows zeros; if any read fails the block shows a failure with a retry (the greeting is independent and unaffected); with the database unavailable (for example on web) it says so. The bundled sample provider (`services/activityService.ts`) and its tests were removed; `types/activity.ts` keeps only `ChartPoint`. The device notice now says Home shows only workouts saved on this device.
+
+**Still demo.** The Workouts tab's demo cards and the demo workout player. **Tested (Node, mocks):** the pure summary, and Home against Node SQLite (empty, totals and goal progress, unfinished and discarded workouts excluded, week boundary, newest workout, resume, search, failure states, Arabic). **Not verified on a device:** native SQLite, layout, screen-reader output, RTL.
 
 ## 6. Open product decisions and future work (documented, not changed)
 
