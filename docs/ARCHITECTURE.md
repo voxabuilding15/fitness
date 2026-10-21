@@ -99,7 +99,7 @@ renderer only; not yet verified on a physical device.
 
 **What is real vs sample today:**
 - Real: language, profile, settings, reminders, workout-session timer logic.
-- Sample / hard-coded (clearly labelled "Demo data" in the UI): Today's stats, all Statistics charts,
+- Sample / hard-coded (clearly labelled "Demo data" in the UI): Today's stats (Home),
   heart-rate / calories / duration cards, per-workout calorie and minute figures, "Regularity".
 
 **Tests today:** Jest. Services, locales and the whole data layer are tested; screens, components, hooks and the React
@@ -367,6 +367,14 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 **Details.** A row shows the workout's name, local date (`YYYY-MM-DD`) and length (`ended_at - started_at`, in minutes). Opening a row goes to the existing `/session/[id]` screen, which already renders a completed session read-only: its saved sets per exercise under the targets recorded at the start, and the summary counted from the saved sets. Its header now shows the workout's name for finished sessions instead of "Workout in progress". Empty, loading, unavailable and read-failed states are separate; a failed read is never shown as an empty history.
 
 **Not included:** statistics, charts, personal records, filtering or searching the history, deleting a workout. **Tested (Node, mocks):** the history screen against Node SQLite (empty, ordering, exclusion of discarded and running sessions, pagination, failed pages, failures, Arabic). **Not verified on a device:** native SQLite, screen-reader output, RTL layout.
+
+## 5j. Phase 4 - milestone 4.4: statistics from saved workouts
+
+**What it is.** The Statistics tab no longer shows sample steps / heart-rate data. It shows three metrics computed from the person's saved, finished workouts: workouts finished, weight lifted (kg) and training time (minutes), per day for this or last week and per part of the month for this month. A "latest workout" card shows the most recent finished workout (sets, weight lifted, time) and opens it; "See all" opens the history. Empty periods show zeros with a note, and a failed read is a failure state, never a screen of zeros.
+
+**Data.** One new read-only repository method, `sessions.dailyActivity(range)`: two small aggregates over `status = 'completed'` sessions (sessions per local day, then sets per local day), merged by day so a day's workouts are never multiplied by their sets. Working sets only: completed and not warm-up. Volume is the sum of `weight_kg x reps` over sets that have both; timed and reps-only sets add sets and reps but no volume. Minutes are `ended_at - started_at`. Discarded and in-progress sessions can't contribute (also tested at the screen level). No migration. `domain/statistics.ts` is pure: weeks start on Saturday (the chart's day labels), a month is split into days 1-7, 8-14, 15-21 and 22-end; `hooks/useStatistics.ts` re-reads on focus and when the period changes.
+
+**Not included / still demo.** Steps, heart rate, calories and "regularity" are gone from this screen because the app has no real source for them. The Home screen's "Today" tiles still use the bundled sample provider in `services/activityService.ts` (labelled demo). No personal records, trends over longer periods, nutrition or body-weight charts. **Tested (Node, mocks):** the period/bucket logic, the aggregate query (completed only, warm-ups excluded, several workouts per day, range, validation, agreement with `countCompleted`) and the screen. **Not verified on a device:** native SQLite, chart rendering, screen-reader output, RTL layout.
 
 ## 6. Open product decisions and future work (documented, not changed)
 

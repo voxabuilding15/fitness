@@ -1,60 +1,79 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
 import { GlassCard } from '../components/GlassCard';
-import { HeartRateWave } from '../components/HeartRateWave';
 import { Icon } from '../components/Icon';
 import { MetricSelector } from '../components/MetricSelector';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
 import { WeeklyActivityChart } from '../components/WeeklyActivityChart';
+import { errorMessageKey } from '../domain/errors';
+import { summarizeSession } from '../domain/setEntry';
+import { buildStats, type StatsMetric, type StatsPeriod } from '../domain/statistics';
 import { formatNumber } from '../hooks/useFormat';
 import { useIsNarrow } from '../hooks/useIsNarrow';
-import { DAILY_STEP_GOAL, activityProvider, defaultSelectedIndex } from '../services/activityService';
+import { useStatistics } from '../hooks/useStatistics';
+import { announce } from '../services/accessibility';
 import { playSound } from '../services/soundService';
 import { useApp } from '../context/AppContext';
 import { colors, endInset, radius } from '../theme';
-import type { MetricId, PeriodId } from '../types/activity';
 
-const PERIODS: PeriodId[] = ['thisWeek', 'lastWeek', 'thisMonth'];
-const METRICS: MetricId[] = ['steps', 'heartRate', 'regularity'];
+const PERIODS: StatsPeriod[] = ['thisWeek', 'lastWeek', 'thisMonth'];
+const METRICS: { id: StatsMetric; icon: React.ComponentProps<typeof Icon>['name'] }[] = [
+  { id: 'workouts', icon: 'fitness-outline' },
+  { id: 'volume', icon: 'barbell-outline' },
+  { id: 'minutes', icon: 'time-outline' },
+];
 
+/** Statistics from the person's saved, finished workouts (no sample data): workouts, weight lifted and time per day or week. */
 export default function StatisticsScreen() {
   const { t } = useTranslation();
   const { isRTL } = useApp();
   const narrow = useIsNarrow();
-  const [metric, setMetric] = useState<MetricId>('steps');
-  const [period, setPeriod] = useState<PeriodId>('thisWeek');
-  const [selected, setSelected] = useState(defaultSelectedIndex('thisWeek'));
+  const [metric, setMetric] = useState<StatsMetric>('workouts');
+  const [period, setPeriod] = useState<StatsPeriod>('thisWeek');
+  const [picked, setPicked] = useState<number | null>(null); // null = today's bucket
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [waveWidth, setWaveWidth] = useState(0);
+  const { state, retry, retryDatabase } = useStatistics(period);
 
-  const series = useMemo(() => activityProvider.getSeries(metric, period), [metric, period]);
-  const recent = useMemo(() => activityProvider.getRecentWorkout(), []);
-  const labels = series.points.map((p) => t(`days.${p.labelKey}`));
-  // weekly bars get 3-letter labels on very small screens; monthly bars (W1…) are already short
-  const axisLabels = series.points.map((p) => t(narrow && period !== 'thisMonth' ? `daysShort.${p.labelKey}` : `days.${p.labelKey}`));
+  const previous = useRef<string | null>(null);
+  const problem = state.status === 'unavailable' ? t('stats.unavailable') : state.status === 'failed' ? `${t('stats.readFailed')} ${t(errorMessageKey(state.error))}` : '';
+  useEffect(() => {
+    const before = previous.current;
+    if (before === state.status) return;
+    previous.current = state.status;
+    if (state.status === 'ready') {
+      if (before === 'loading') announce(t('stats.loaded'));
+    } else if (state.status !== 'loading') announce(problem);
+  }, [state.status, problem, t]);
 
-  const unitSuffix = metric === 'regularity' ? '%' : metric === 'heartRate' ? ` ${t('common.bpm')}` : '';
-  const fmt = (v: number) => `${formatNumber(v)}${unitSuffix}`;
+  const unitSuffix = metric === 'volume' ? ` ${t('stats.unitKg')}` : metric === 'minutes' ? ` ${t('stats.unitMin')}` : '';
+  const fmt = (v: number) => `${formatNumber(v, 1)}${unitSuffix}`;
 
-  const choosePeriod = (p: PeriodId) => {
+  const choosePeriod = (p: StatsPeriod) => {
     playSound('tap');
     setPeriod(p);
-    setSelected(defaultSelectedIndex(p));
+    setPicked(null);
     setPickerOpen(false);
   };
   const reset = () => {
-    setMetric('steps');
+    setMetric('workouts');
     setPeriod('thisWeek');
-    setSelected(defaultSelectedIndex('thisWeek'));
+    setPicked(null);
     setMenuOpen(false);
   };
+
+  const ready = state.status === 'ready' ? state : null;
+  const series = ready ? buildStats(ready.window, ready.rows, metric) : null;
+  const selected = ready ? Math.min(picked ?? ready.window.todayIndex, ready.window.buckets.length - 1) : 0;
+  const labels = series ? series.points.map((p) => t(`days.${p.labelKey}`)) : [];
+  const axisLabels = series ? series.points.map((p) => t(narrow && period !== 'thisMonth' ? `daysShort.${p.labelKey}` : `days.${p.labelKey}`)) : [];
+  const latest = ready?.latest ? { session: ready.latest, summary: summarizeSession(ready.latest) } : null;
 
   return (
     <Screen>
@@ -74,51 +93,68 @@ export default function StatisticsScreen() {
       ) : null}
 
       <GlassCard style={styles.outer}>
-        <MetricSelector
-          value={metric}
-          onChange={(m) => setMetric(m)}
-          items={METRICS.map((id) => ({ id, label: t(`stats.metric.${id}`) }))}
-        />
+        <MetricSelector value={metric} onChange={setMetric} items={METRICS.map((m) => ({ id: m.id, icon: m.icon, label: t(`stats.metric.${m.id}`) }))} />
 
         <GlassCard strong style={styles.chartCard}>
-          <View style={styles.summaryRow}>
-            <View style={styles.flex}>
-              <AppText size={26} weight="semibold" color={colors.ink}>{fmt(series.average)}</AppText>
-              <AppText size={12} color={colors.muted}>{t(`stats.avg.${metric}`)}</AppText>
+          {state.status === 'loading' ? (
+            <View style={styles.row}>
+              <ActivityIndicator color={colors.dark} />
+              <AppText size={13} color={colors.ink}>{t('stats.loading')}</AppText>
             </View>
-            <View style={styles.pickerWrap}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('stats.periodPicker')}
-                accessibilityState={{ expanded: pickerOpen }}
-                onPress={() => setPickerOpen((v) => !v)}
-                style={styles.picker}
-              >
-                <AppText size={12} weight="medium" color={colors.ink}>{t(`stats.period.${period}`)}</AppText>
-                <Icon name="chevron-down" size={14} color={colors.ink} />
+          ) : null}
+
+          {state.status === 'unavailable' || state.status === 'failed' ? (
+            <View style={styles.problem}>
+              <AppText size={13} color={colors.ink}>{problem}</AppText>
+              <Pressable accessibilityRole="button" onPress={state.status === 'unavailable' ? retryDatabase : retry} style={styles.retry}>
+                <AppText size={14} weight="medium" color={colors.dark} align="center">{t('stats.reload')}</AppText>
               </Pressable>
             </View>
-          </View>
+          ) : null}
 
-          <WeeklyActivityChart
-            points={series.points}
-            labels={labels}
-            axisLabels={axisLabels}
-            selectedIndex={selected}
-            onSelect={setSelected}
-            formatValue={fmt}
-          />
+          {series ? (
+            <>
+              <View style={styles.summaryRow}>
+                <View style={styles.flex}>
+                  <AppText size={26} weight="semibold" color={colors.ink}>{fmt(series.total)}</AppText>
+                  <AppText size={12} color={colors.muted}>{t(`stats.total.${metric}`)}</AppText>
+                </View>
+                <View style={styles.pickerWrap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('stats.periodPicker')}
+                    accessibilityState={{ expanded: pickerOpen }}
+                    onPress={() => setPickerOpen((v) => !v)}
+                    style={styles.picker}
+                  >
+                    <AppText size={12} weight="medium" color={colors.ink}>{t(`stats.period.${period}`)}</AppText>
+                    <Icon name="chevron-down" size={14} color={colors.ink} />
+                  </Pressable>
+                </View>
+              </View>
+              {series.workouts === 0 ? <AppText size={12} color={colors.muted}>{t('stats.emptyPeriod')}</AppText> : null}
 
-          {pickerOpen ? (
-            <View style={[styles.dropdown, endInset(isRTL, 14)]} accessibilityRole="menu">
-              {PERIODS.map((p) => (
-                <Pressable key={p} accessibilityRole="menuitem" onPress={() => choosePeriod(p)} style={[styles.option, p === period && styles.optionActive]}>
-                  <AppText size={13} weight={p === period ? 'semibold' : 'regular'} color={p === period ? colors.white : colors.ink}>
-                    {t(`stats.period.${p}`)}
-                  </AppText>
-                </Pressable>
-              ))}
-            </View>
+              <WeeklyActivityChart
+                points={series.points}
+                labels={labels}
+                axisLabels={axisLabels}
+                selectedIndex={selected}
+                onSelect={setPicked}
+                formatValue={fmt}
+              />
+
+              {pickerOpen ? (
+                <View style={[styles.dropdown, endInset(isRTL, 14)]} accessibilityRole="menu">
+                  {PERIODS.map((p) => (
+                    <Pressable key={p} accessibilityRole="menuitem" onPress={() => choosePeriod(p)} style={[styles.option, p === period && styles.optionActive]}>
+                      <AppText size={13} weight={p === period ? 'semibold' : 'regular'} color={p === period ? colors.white : colors.ink}>
+                        {t(`stats.period.${p}`)}
+                      </AppText>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </>
           ) : null}
         </GlassCard>
       </GlassCard>
@@ -126,49 +162,42 @@ export default function StatisticsScreen() {
       {aboutOpen ? (
         <GlassCard strong style={styles.about}>
           <Icon name="information-circle-outline" size={18} color={colors.dark} />
-          <AppText size={12} color={colors.ink} style={styles.flex}>
-            {t('common.demoNote')} {t('stats.aboutBody', { goal: formatNumber(DAILY_STEP_GOAL) })}
-          </AppText>
+          <AppText size={12} color={colors.ink} style={styles.flex}>{t('stats.aboutBody')}</AppText>
         </GlassCard>
       ) : null}
 
-      <SectionHeader title={t('stats.recentWorkout')} action={t('common.seeAll')} onAction={() => router.navigate('/workouts')} />
-      <View style={styles.recent}>
-        <View style={[styles.tile, styles.hrCard]} onLayout={(e) => setWaveWidth(e.nativeEvent.layout.width)}>
-          <View style={styles.hrBadge}>
-            <Icon name="heart-outline" size={18} color={colors.dark} />
-          </View>
-          <View style={styles.wave}>
-            <HeartRateWave trace={recent.heartRateTrace} width={waveWidth} height={90} />
-          </View>
-          <View style={styles.hrText}>
-            <AppText size={13} color={colors.ink}>{t('stats.heartRate')}</AppText>
-            <AppText size={22} weight="semibold" color={colors.ink}>
-              {recent.heartRateBpm} <AppText size={12} color={colors.ink}>{t('common.bpm')}</AppText>
-            </AppText>
-          </View>
-        </View>
-        <View style={styles.rightCol}>
-          <View style={[styles.tile, styles.small]}>
-            <View style={styles.smallBadge}><Icon name="flame" size={16} color={colors.accent} /></View>
-            <AppText size={13} color={colors.ink}>{t('stats.calories')}</AppText>
-            <AppText size={18} weight="semibold" color={colors.ink}>
-              {recent.calories} <AppText size={11} color={colors.ink}>{t('common.kcal')}</AppText>
-            </AppText>
-          </View>
-          <View style={[styles.tile, styles.small]}>
-            <View style={styles.smallBadge}><Icon name="alarm-outline" size={16} color={colors.dark} /></View>
-            <AppText size={13} color={colors.ink}>{t('stats.duration')}</AppText>
-            <AppText size={18} weight="semibold" color={colors.ink}>
-              {recent.durationMinutes} <AppText size={11} color={colors.ink}>{t('stats.minutes')}</AppText>
-            </AppText>
-          </View>
-        </View>
-      </View>
-      <View style={styles.demoRow}>
-        <Icon name="flask-outline" size={13} color={colors.onGradientMuted} />
-        <AppText size={11} color={colors.onGradientMuted}>{t('common.demoData')}</AppText>
-      </View>
+      {ready ? (
+        <>
+          <SectionHeader title={t('stats.recentWorkout')} action={t('common.seeAll')} onAction={() => router.push('/history')} />
+          {latest ? (
+            <GlassCard strong style={styles.latest}>
+              <AppText size={18} weight="semibold" color={colors.ink} accessibilityRole="header">{latest.session.name}</AppText>
+              <AppText size={12} color={colors.muted}>{latest.session.localDate}</AppText>
+              <View style={styles.facts}>
+                <View style={styles.fact}>
+                  <AppText size={12} color={colors.muted}>{t('stats.latestSets')}</AppText>
+                  <AppText size={18} weight="semibold" color={colors.ink}>{formatNumber(latest.summary.loggedSets)}</AppText>
+                </View>
+                <View style={styles.fact}>
+                  <AppText size={12} color={colors.muted}>{t('stats.latestVolume')}</AppText>
+                  <AppText size={18} weight="semibold" color={colors.ink}>{`${formatNumber(latest.summary.volumeKg, 1)} ${t('stats.unitKg')}`}</AppText>
+                </View>
+                <View style={styles.fact}>
+                  <AppText size={12} color={colors.muted}>{t('stats.latestTime')}</AppText>
+                  <AppText size={18} weight="semibold" color={colors.ink}>{`${formatNumber(latest.summary.durationMin ?? 0)} ${t('stats.unitMin')}`}</AppText>
+                </View>
+              </View>
+              <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(latest.session.id) } })} style={styles.retry}>
+                <AppText size={14} weight="medium" color={colors.dark} align="center">{t('stats.openWorkout')}</AppText>
+              </Pressable>
+            </GlassCard>
+          ) : (
+            <GlassCard strong style={styles.latest}>
+              <AppText size={13} color={colors.ink}>{t('stats.noLatest')}</AppText>
+            </GlassCard>
+          )}
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -192,14 +221,10 @@ const styles = StyleSheet.create({
   option: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
   optionActive: { backgroundColor: colors.dark },
   about: { flexDirection: 'row', gap: 10, padding: 12, borderRadius: radius.md },
-  recent: { flexDirection: 'row', gap: 12, height: 250 },
-  tile: { backgroundColor: '#B7C6C3', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.glassBorder, overflow: 'hidden' },
-  hrCard: { flex: 1.05, padding: 14, justifyContent: 'space-between' },
-  hrBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  wave: { position: 'absolute', start: 0, end: 0, top: 70 },
-  hrText: { gap: 2, zIndex: 2 },
-  rightCol: { flex: 1, gap: 12 },
-  small: { flex: 1, padding: 12, justifyContent: 'center', gap: 4, backgroundColor: '#C3CFCC' },
-  smallBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  demoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  problem: { gap: 10 },
+  retry: { minHeight: 48, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, backgroundColor: colors.white },
+  latest: { padding: 16, gap: 8 },
+  facts: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+  fact: { flex: 1, minWidth: 90, gap: 2 },
 });

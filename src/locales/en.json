@@ -51,23 +51,40 @@
   },
   "stats": {
     "title": "Statistic",
-    "metric": { "steps": "Steps", "heartRate": "Heart rate", "regularity": "Regularity" },
-    "period": { "thisWeek": "This Week", "lastWeek": "Last Week", "thisMonth": "This Month" },
-    "avg": {
-      "steps": "average steps",
-      "heartRate": "average bpm",
-      "regularity": "% of daily goal"
+    "metric": {
+      "workouts": "Workouts",
+      "volume": "Volume",
+      "minutes": "Time"
     },
-    "selectedValue": "{{label}}: {{value}}",
-    "recentWorkout": "Recent workout",
-    "heartRate": "Heart rate",
-    "calories": "Calories",
-    "duration": "Duration",
-    "minutes": "minutes",
+    "period": {
+      "thisWeek": "This Week",
+      "lastWeek": "Last Week",
+      "thisMonth": "This Month"
+    },
+    "total": {
+      "workouts": "workouts finished",
+      "volume": "kg lifted in total",
+      "minutes": "minutes trained"
+    },
+    "periodPicker": "Choose period",
     "menuAbout": "About this data",
     "menuReset": "Reset selection",
-    "aboutBody": "Regularity is the share of the daily step goal ({{goal}} steps) reached each day. Monthly bars show weekly averages.",
-    "periodPicker": "Choose period"
+    "aboutBody": "Everything here is counted from your finished workouts. Discarded and unfinished workouts are not included. Volume is weight times reps of your logged sets, without warm-ups. Weeks start on Saturday; months show four parts (days 1–7, 8–14, 15–21 and the rest).",
+    "selectedValue": "{{label}}: {{value}}",
+    "unitKg": "kg",
+    "unitMin": "min",
+    "emptyPeriod": "No finished workouts in this period.",
+    "loading": "Loading your statistics…",
+    "loaded": "Your statistics are loaded.",
+    "unavailable": "Your statistics aren't available right now.",
+    "readFailed": "Your statistics couldn't be read.",
+    "reload": "Try again",
+    "recentWorkout": "Latest workout",
+    "noLatest": "You haven't finished a workout yet.",
+    "openWorkout": "Open workout",
+    "latestSets": "Sets",
+    "latestVolume": "Weight lifted",
+    "latestTime": "Time"
   },
   "days": {
     "sat": "Sat", "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri",

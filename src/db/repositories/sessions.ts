@@ -278,6 +278,26 @@ export function createSessionRepository(ctx: RepoContext): SessionRepository {
       return guard(async () => (await ctx.db.all<{ local_date: string }>(
         "SELECT DISTINCT local_date FROM workout_sessions WHERE status='completed' AND local_date BETWEEN ? AND ? ORDER BY local_date", [r.value.from, r.value.to])).map((x) => x.local_date));
     },
+    async dailyActivity(range) {
+      const r = parseInput(dateRangeInput, range);
+      if (!r.ok) return err(r.error);
+      return guard(async () => {
+        const args = [r.value.from, r.value.to];
+        // two small aggregates (sessions, then sets) merged by day, so a day with several workouts is never multiplied by its sets
+        const sessions = await ctx.db.all<{ d: string; workouts: number; ms: number }>(
+          "SELECT local_date d, COUNT(*) workouts, SUM(ended_at - started_at) ms FROM workout_sessions WHERE status='completed' AND local_date BETWEEN ? AND ? GROUP BY local_date", args);
+        const sets = await ctx.db.all<{ d: string; sets: number; reps: number; vol: number }>(
+          `SELECT ws.local_date d, COUNT(*) sets, COALESCE(SUM(ss.reps),0) reps,
+                  COALESCE(SUM(CASE WHEN ss.weight_kg IS NOT NULL AND ss.reps IS NOT NULL THEN ss.weight_kg * ss.reps ELSE 0 END),0) vol
+           FROM session_sets ss JOIN session_exercises se ON se.id=ss.session_exercise_id JOIN workout_sessions ws ON ws.id=se.session_id
+           WHERE ws.status='completed' AND ss.is_completed=1 AND ss.is_warmup=0 AND ws.local_date BETWEEN ? AND ? GROUP BY ws.local_date`, args);
+        const byDay = new Map(sets.map((x) => [x.d, x]));
+        return sessions.map((x) => ({
+          localDate: x.d, workouts: Number(x.workouts), minutes: Math.round(Number(x.ms) / 60_000),
+          sets: Number(byDay.get(x.d)?.sets ?? 0), reps: Number(byDay.get(x.d)?.reps ?? 0), volumeKg: Math.round(Number(byDay.get(x.d)?.vol ?? 0) * 10) / 10,
+        })).sort((a, b) => (a.localDate < b.localDate ? -1 : 1));
+      });
+    },
     async countCompleted(range) {
       const r = parseInput(dateRangeInput, range);
       if (!r.ok) return err(r.error);

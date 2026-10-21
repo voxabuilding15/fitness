@@ -118,6 +118,18 @@ export interface WorkoutSession {
   estKcal: number | null;
   estMethod: 'met' | null;
 }
+/** What was done on one local day, from COMPLETED sessions only. Working sets only (warm-ups excluded). */
+export interface DailyActivity {
+  localDate: string;
+  workouts: number;
+  /** Completed non-warm-up sets. */
+  sets: number;
+  reps: number;
+  /** Sum of weight (kg) x reps over sets that have both. */
+  volumeKg: number;
+  /** Whole minutes between start and end, summed over the day's workouts. */
+  minutes: number;
+}
 export interface WorkoutSessionDetail extends WorkoutSession {
   exercises: SessionExercise[];
 }

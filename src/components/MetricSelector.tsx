@@ -5,24 +5,17 @@ import { Icon } from './Icon';
 import { colors, radius } from '../theme';
 import { useIsNarrow } from '../hooks/useIsNarrow';
 import { playSound } from '../services/soundService';
-import type { MetricId } from '../types/activity';
 
 type IconName = React.ComponentProps<typeof Icon>['name'];
 
-export const METRIC_ICONS: Record<MetricId, IconName> = {
-  steps: 'footsteps',
-  heartRate: 'heart-outline',
-  regularity: 'bar-chart-outline',
-};
-
-interface Props {
-  items: { id: MetricId; label: string }[];
-  value: MetricId;
-  onChange: (id: MetricId) => void;
+interface Props<T extends string> {
+  items: { id: T; label: string; icon: IconName }[];
+  value: T;
+  onChange: (id: T) => void;
 }
 
-/** Row of pill selectors (Steps · Heart rate · Regularity). */
-export function MetricSelector({ items, value, onChange }: Props) {
+/** Row of pill selectors, one per metric. */
+export function MetricSelector<T extends string>({ items, value, onChange }: Props<T>) {
   const narrow = useIsNarrow();
   return (
     <View style={styles.row} accessibilityRole="tablist">
@@ -39,7 +32,7 @@ export function MetricSelector({ items, value, onChange }: Props) {
             }}
             style={[styles.pill, narrow && styles.pillNarrow, active && styles.active]}
           >
-            {!narrow ? <Icon name={METRIC_ICONS[item.id]} size={15} color={colors.dark} /> : null}
+            {!narrow ? <Icon name={item.icon} size={15} color={colors.dark} /> : null}
             <AppText size={12} weight={active ? 'semibold' : 'medium'} color={colors.dark} numberOfLines={1} style={styles.label}>
               {item.label}
             </AppText>
