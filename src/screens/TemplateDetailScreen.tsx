@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, goBack } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
@@ -9,23 +9,14 @@ import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
-import type { TemplateExercise } from '../domain/models';
+import { canStartFromTemplate, startFailureKey } from '../domain/sessionStart';
+import { targetSummary } from '../domain/templateSummary';
 import { uniqueCopyName } from '../domain/templateBuilder';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
+import { useActiveSession } from '../hooks/useActiveSession';
 import { useTemplates } from '../hooks/useTemplates';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
-
-/** The numbers of one row, in words: "3 × 8–12 · rest 60 s". */
-export function targetSummary(t: (key: string, o?: Record<string, string | number>) => string, e: TemplateExercise): string {
-  const rest = e.restSec;
-  if (e.targetRepsMin === null && e.targetRepsMax === null && e.targetDurationSec !== null) {
-    return t('templates.summaryDuration', { sets: e.targetSets, seconds: e.targetDurationSec, rest });
-  }
-  const lo = e.targetRepsMin ?? e.targetRepsMax;
-  const reps = e.targetRepsMax !== null && e.targetRepsMin !== null && e.targetRepsMax !== e.targetRepsMin ? t('templates.repsRange', { min: e.targetRepsMin, max: e.targetRepsMax }) : String(lo);
-  return t('templates.summaryReps', { sets: e.targetSets, reps, rest });
-}
 
 export default function TemplateDetailScreen() {
   const { t } = useTranslation();
@@ -34,9 +25,22 @@ export default function TemplateDetailScreen() {
   const { state: db } = useDatabase();
   const { state, retry, retryDatabase } = useTemplates();
   const nameOf = useExerciseName();
+  const active = useActiveSession();
+  const [starting, setStarting] = useState(false);
+  // set synchronously, so two taps in the same frame can't both reach the database; released when the screen loses focus
+  const startLock = useRef(false);
+  // a workout we know is in progress (just started, or reported by the database), before the next focus re-read
+  const [known, setKnown] = useState<{ id: number; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState<{ text: string; problem: boolean } | null>(null);
+
+  useFocusEffect(
+    useCallback(() => () => {
+      startLock.current = false;
+      setStarting(false);
+    }, []),
+  );
 
   const template = state.status === 'ready' && templateId !== null ? state.templates.find((x) => x.id === templateId) ?? null : null;
   const status = templateId === null ? 'missing' : state.status === 'ready' && !template ? 'missing' : state.status;
@@ -84,6 +88,34 @@ export default function TemplateDetailScreen() {
   const repos = db.status === 'ready' ? db.repos : null;
   const failure = (e: AppError) => say(t(errorMessageKey(e)), true);
 
+  const inProgress = known ?? (active.status === 'ready' && active.active ? { id: active.active.id, name: active.active.name } : null);
+  const openSession = (sessionId: number) => router.push({ pathname: '/session/[id]', params: { id: String(sessionId) } });
+  const start = async () => {
+    if (!repos || startLock.current || !canStartFromTemplate(template)) return;
+    startLock.current = true;
+    setStarting(true);
+    const r = await repos.sessions.start({ templateId: template.id });
+    if (!r.ok) {
+      startLock.current = false;
+      setStarting(false);
+      if (r.error.kind === 'conflict') {
+        const running = await repos.sessions.getActive();
+        if (running.ok && running.value) setKnown({ id: running.value.id, name: running.value.name });
+      }
+      return say(t(startFailureKey(r.error)), true);
+    }
+    // the session exists from here on; the lock stays so a second tap can't ask for another
+    setKnown({ id: r.value.id, name: r.value.name });
+    try {
+      announce(t('liveSession.started'));
+      openSession(r.value.id);
+    } catch {
+      startLock.current = false;
+      setStarting(false);
+      say(t('liveSession.openFailed'), true);
+    }
+  };
+
   const duplicate = async () => {
     if (!repos || busy) return;
     setBusy(true);
@@ -128,8 +160,26 @@ export default function TemplateDetailScreen() {
       </GlassCard>
 
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/templates/form', params: { id: String(template.id) } })} style={[styles.btn, styles.btnPrimary]}>
-          <AppText size={14} weight="medium" color={colors.white} align="center">{t('templates.edit')}</AppText>
+        {inProgress ? (
+          <Pressable accessibilityRole="button" accessibilityHint={t('liveSession.alreadyActive')} onPress={() => openSession(inProgress.id)} style={[styles.btn, styles.btnPrimary]}>
+            <AppText size={14} weight="medium" color={colors.white} align="center">{t('liveSession.resumeNamed', { name: inProgress.name })}</AppText>
+          </Pressable>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: starting || !canStartFromTemplate(template), busy: starting }}
+              disabled={starting || !canStartFromTemplate(template)}
+              onPress={() => void start()}
+              style={[styles.btn, styles.btnPrimary, (starting || !canStartFromTemplate(template)) && styles.dim]}
+            >
+              <AppText size={14} weight="medium" color={colors.white} align="center">{t(starting ? 'liveSession.starting' : 'liveSession.start')}</AppText>
+            </Pressable>
+            {!canStartFromTemplate(template) ? <AppText size={11} color={colors.onGradientMuted}>{t('liveSession.startEmpty')}</AppText> : null}
+          </>
+        )}
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/templates/form', params: { id: String(template.id) } })} style={[styles.btn, styles.btnGhost]}>
+          <AppText size={14} weight="medium" color={colors.dark} align="center">{t('templates.edit')}</AppText>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => void duplicate()} style={[styles.btn, styles.btnGhost, busy && styles.dim]}>
           <AppText size={14} weight="medium" color={colors.dark} align="center">{t('templates.duplicate')}</AppText>

@@ -7,6 +7,7 @@ import { AppText } from '../components/AppText';
 import { GlassCard } from '../components/GlassCard';
 import { Screen } from '../components/Screen';
 import { errorMessageKey } from '../domain/errors';
+import { useActiveSession } from '../hooks/useActiveSession';
 import { useTemplates } from '../hooks/useTemplates';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
@@ -15,6 +16,7 @@ import { colors, radius } from '../theme';
 export default function TemplatesScreen() {
   const { t } = useTranslation();
   const { state, retry, retryDatabase } = useTemplates();
+  const active = useActiveSession();
 
   const previous = useRef<string | null>(null);
   const problem = state.status === 'unavailable' ? `${t(errorMessageKey(state.error))} ${t('templates.unavailable')}` : state.status === 'failed' ? `${t('templates.readFailed')} ${t(errorMessageKey(state.error))}` : '';
@@ -33,6 +35,19 @@ export default function TemplatesScreen() {
     <Screen withNav={false}>
       <AppHeader title={t('templates.title')} right={state.status === 'ready' ? { icon: 'add', label: t('templates.create'), onPress: create } : undefined} />
       <AppText size={13} color={colors.onGradientMuted}>{t('templates.subtitle')}</AppText>
+
+      {active.status === 'ready' && active.active ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('liveSession.inProgressBanner', { name: active.active.name })}
+          accessibilityHint={t('liveSession.resume')}
+          onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(active.active!.id) } })}
+          style={styles.banner}
+        >
+          <AppText size={14} weight="medium" color={colors.white}>{t('liveSession.inProgressBanner', { name: active.active.name })}</AppText>
+          <AppText size={11} color={colors.white}>{t('liveSession.resume')}</AppText>
+        </Pressable>
+      ) : null}
 
       {state.status === 'loading' ? (
         <GlassCard strong style={styles.card}>
@@ -90,6 +105,7 @@ const styles = StyleSheet.create({
   card: { padding: 16, gap: 12 },
   list: { gap: 10 },
   item: { minHeight: 56, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.85)', gap: 2 },
+  banner: { minHeight: 56, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10, justifyContent: 'center', backgroundColor: colors.dark, gap: 2 },
   btn: { minHeight: 48, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   btnPrimary: { backgroundColor: colors.dark },
   btnGhost: { backgroundColor: 'rgba(255,255,255,0.8)' },

@@ -325,6 +325,18 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **Tested:** domain logic, repository behaviour including close/reopen of a real database file (five-exercise workout keeps order and targets), and the three screens against Node SQLite in English and Arabic. **Not verified on a device:** native SQLite, screen-reader output, RTL layout, keyboard behaviour with many rows, touch reordering. Arabic strings need review by a native speaker; the Arabic term for a workout ("حصة") is my choice.
 
+## 5g. Phase 4 - milestone 4.1: starting a workout session
+
+**What it is.** A "Start workout" button on the saved-workout detail screen creates a real session and opens `/session/[id]`. No migration and no new repository method: it calls the existing `sessions.start({ templateId })`, which in one transaction reads the template's name and its exercises in `position` order, inserts an `in_progress` `workout_sessions` row (`template_id` set) and one `session_exercises` row per exercise. The session starts with no sets. The template is only read.
+
+**Guards.** One in-progress session is allowed by a unique index, so a second start is a `conflict` and its rows roll back. The detail screen also reads `getActive()` on focus and shows "Resume" instead of "Start" when a workout is running; the workout list shows a banner. A synchronous lock (cleared when the screen loses focus) keeps two taps in one frame from reaching the database twice. A failed start is reported as not started and nothing navigates; if the session was saved but navigation throws, the screen says the session exists and offers Resume. A workout with no exercises, or one deleted after the screen loaded, cannot be started.
+
+**What the session screen shows.** The persisted session read back from the database (name, status, local start date, exercises in order). Sessions do not copy targets, so the "Planned" sets/reps/rest line is read from the linked template while it still exists and still has the same exercise at that position; otherwise it is left out rather than guessed. Targets shown can therefore reflect edits made after the session started.
+
+**Not in this milestone:** logging sets, rest timer, finishing or discarding a session, summaries. Until a later milestone adds finish/discard, a started session stays in progress, blocks starting another, and can only be resumed.
+
+**Tested:** repository behaviour (order, association, conflict rollback, concurrent starts, template deleted or edited later), the pure helpers, and the screens against Node SQLite in English and Arabic. **Not verified on a device:** native SQLite, navigation animation and back-stack behaviour, screen-reader output, RTL layout.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a
