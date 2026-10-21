@@ -5,12 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { AppHeader, goBack } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
 import { GlassCard } from '../components/GlassCard';
+import { HintLines, HintsCard } from '../components/HintsCard';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
 import type { Exercise } from '../domain/models';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
+import { useRecommendations } from '../hooks/useRecommendations';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
 
@@ -22,6 +24,7 @@ export default function ExerciseDetailScreen() {
   const exerciseId = /^\d+$/.test(String(id ?? '')) ? Number(id) : null;
   const { state: db, retry } = useDatabase();
   const nameOf = useExerciseName();
+  const recs = useRecommendations();
   const repos = db.status === 'ready' ? db.repos : null;
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [busy, setBusy] = useState(false);
@@ -134,8 +137,10 @@ export default function ExerciseDetailScreen() {
         {ex.secondaryMuscles.length ? row(t('library.secondary'), ex.secondaryMuscles.map((m) => t(`library.muscles.${m}`)).join(', ')) : null}
         {row(t('library.equipment'), t(`library.equipmentNames.${ex.equipment}`))}
         {row(t('library.tracking'), t(`library.trackingTypes.${ex.trackingType}`))}
+        <HintLines lines={recs.notesOf(recs.assess(ex))} />
         {builtIn ? <AppText size={11} color={colors.muted}>{t('library.builtInNote')}</AppText> : null}
       </GlassCard>
+      <HintsCard lines={recs.limits} />
 
       <View style={styles.actions}>
         {builtIn ? (

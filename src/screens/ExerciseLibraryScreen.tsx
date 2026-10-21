@@ -6,6 +6,7 @@ import { AppHeader } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
 import { ChoiceChips } from '../components/FormControls';
 import { GlassCard } from '../components/GlassCard';
+import { HintLines, HintsCard } from '../components/HintsCard';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { useApp } from '../context/AppContext';
@@ -14,6 +15,7 @@ import { NO_FILTER, filterExercises, hasActiveFilter, type LibraryFilter } from 
 import type { Exercise } from '../domain/models';
 import { EQUIPMENT, EXERCISE_CATEGORY, MUSCLE } from '../domain/schemas/enums';
 import { useExerciseLibrary, useExerciseName } from '../hooks/useExerciseLibrary';
+import { useRecommendations } from '../hooks/useRecommendations';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
 
@@ -22,6 +24,7 @@ export default function ExerciseLibraryScreen() {
   const { isRTL } = useApp();
   const { state, reload, retryDatabase } = useExerciseLibrary();
   const nameOf = useExerciseName();
+  const recs = useRecommendations();
   const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -111,6 +114,7 @@ export default function ExerciseLibraryScreen() {
             </GlassCard>
           ) : null}
 
+          <HintsCard lines={recs.limits} />
           <AppText size={12} color={colors.onGradientMuted}>{t('library.count', { count: shown.length })}</AppText>
 
           {state.exercises.length === 0 ? (
@@ -125,7 +129,7 @@ export default function ExerciseLibraryScreen() {
           ) : (
             <View style={styles.list}>
               {shown.map((e) => (
-                <ExerciseRow key={e.id} exercise={e} name={nameOf(e)} />
+                <ExerciseRow key={e.id} exercise={e} name={nameOf(e)} hints={recs.notesOf(recs.assess(e))} />
               ))}
             </View>
           )}
@@ -135,20 +139,21 @@ export default function ExerciseLibraryScreen() {
   );
 }
 
-function ExerciseRow({ exercise, name }: { exercise: Exercise; name: string }) {
+function ExerciseRow({ exercise, name, hints }: { exercise: Exercise; name: string; hints: string[] }) {
   const { t } = useTranslation();
   const detail = `${t(`library.muscles.${exercise.primaryMuscle}`)} · ${t(`library.equipmentNames.${exercise.equipment}`)}`;
   const flags = [exercise.source === 'user' ? t('library.custom') : null, exercise.isArchived ? t('library.hidden') : null].filter(Boolean) as string[];
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[name, detail, ...flags].join(', ')}
+      accessibilityLabel={[name, detail, ...flags, ...hints].join(', ')}
       onPress={() => router.push({ pathname: '/exercises/[id]', params: { id: String(exercise.id) } })}
       style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}
     >
       <View style={styles.flex}>
         <AppText size={15} weight="medium" color={colors.ink} numberOfLines={2}>{name}</AppText>
         <AppText size={12} color={colors.muted}>{detail}</AppText>
+        <HintLines lines={hints} />
       </View>
       {flags.map((f) => (
         <View key={f} style={styles.badge}>

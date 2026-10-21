@@ -444,3 +444,29 @@ describe('Home greeting name (useProfileName)', () => {
 });
 
 it('T0 is the fixed clock these tests use', () => expect(env.clock.now()).toBe(T0));
+
+describe('the caution-area and experience settings say what they do and what they cannot check', () => {
+  const rows = () => tree.root.findAll((n: any) => n.props.accessibilityRole === 'button' && typeof n.props.onPress === 'function');
+  const openPanel = async (label: string) => {
+    const row = rows().find((n: any) => String(n.props.accessibilityLabel ?? textOf(n)).includes(label));
+    if (!row) throw new Error(`no row "${label}"`);
+    await act(async () => { await row.props.onPress(); });
+    await flush();
+  };
+
+  it('lists, before anything is chosen, which areas the exercise hints can check, partly check, or not check', async () => {
+    await mount(ready());
+    await openPanel(en.profile.caution);
+    expect(has(en.profile.cautionNote)).toBe(true);
+    expect(has(`Checked: ${en.profile.areas.shoulders}. Partly checked: ${en.profile.areas.wrists}. Not checked: ${en.profile.areas.neck}, ${en.profile.areas.lowerBack}, ${en.profile.areas.knees}, ${en.profile.areas.ankles}.`)).toBe(true);
+    // nothing in it claims medical advice or a guarantee of safety
+    expect(has('not medical advice')).toBe(true);
+    expect(has('guarantee')).toBe(false);
+  });
+
+  it('the experience panel explains what the level changes', async () => {
+    await mount(ready());
+    await openPanel(en.profile.experience);
+    expect(has(en.profile.levelNote)).toBe(true);
+  });
+});

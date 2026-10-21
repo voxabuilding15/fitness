@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AppText } from './AppText';
 import { TextField } from './FormControls';
 import { GlassCard } from './GlassCard';
+import { HintLines } from './HintsCard';
 import type { SessionSet } from '../domain/models';
 import type { TrackingType } from '../domain/schemas/enums';
 import { fieldsFor, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
@@ -32,6 +33,8 @@ interface Props {
   tracking: TrackingType;
   /** The targets recorded when the session started, in words; null when none were recorded. */
   planned: string | null;
+  /** Short hints from the Profile settings (caution areas), shown under the name. */
+  hints?: string[];
   sets: SessionSet[];
   /** null = this card is read-only (the workout has ended). */
   entry: null | {
@@ -41,7 +44,7 @@ interface Props {
   };
 }
 
-export function SessionExerciseCard({ position, name, tracking, planned, sets, entry }: Props) {
+export function SessionExerciseCard({ position, name, tracking, planned, hints = [], sets, entry }: Props) {
   const { t } = useTranslation();
   const logged = sets.filter((s) => s.isCompleted);
   return (
@@ -49,6 +52,7 @@ export function SessionExerciseCard({ position, name, tracking, planned, sets, e
       <View role="group" accessibilityLabel={`${position}. ${name}`} style={styles.body}>
         <AppText size={16} weight="semibold" color={colors.ink} accessibilityRole="header">{`${position}. ${name}`}</AppText>
         {planned ? <AppText size={12} color={colors.muted}>{t('liveSession.planned', { summary: planned })}</AppText> : null}
+        <HintLines lines={hints} />
 
         {logged.length === 0 ? <AppText size={12} color={colors.muted}>{t('liveSession.noSets')}</AppText> : null}
         {logged.map((s) => (

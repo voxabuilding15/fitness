@@ -17,6 +17,7 @@ import ExerciseLibraryScreen from '../../screens/ExerciseLibraryScreen';
 const TestRenderer = require('react-test-renderer');
 const { act } = TestRenderer;
 
+let mockSettings: { experience: 'beginner' | 'intermediate' | 'advanced'; cautionAreas: string[] } = { experience: 'intermediate', cautionAreas: [] };
 let mockDb: { state: unknown; retry: () => void };
 let mockParams: Record<string, string> = {};
 const mockPush = jest.fn();
@@ -30,7 +31,7 @@ jest.mock('react-i18next', () => {
   const value = { t };
   return { useTranslation: () => value };
 });
-jest.mock('../../context/AppContext', () => ({ useApp: () => ({ isRTL: false }) }));
+jest.mock('../../context/AppContext', () => ({ useApp: () => ({ isRTL: false, settings: mockSettings }) }));
 jest.mock('../../context/DatabaseContext', () => ({ useDatabase: () => mockDb }));
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -93,6 +94,7 @@ const custom = (name = 'Cable woodchop') =>
 const seeded = async (slug: string) => unwrap(await env.repos.exercises.list({ includeArchived: true })).find((e) => e.slug === slug)!;
 
 beforeEach(async () => {
+  mockSettings = { experience: 'intermediate', cautionAreas: [] };
   env = await createRepoEnv();
   unwrap(await runSeed(env.db, SEED_PACK, env.clock));
   mockParams = {};

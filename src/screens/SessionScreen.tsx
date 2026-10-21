@@ -16,6 +16,7 @@ import type { Result } from '../domain/result';
 import { nextDraft, planSet, summarizeSession, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
 import { summarizeTargets } from '../domain/templateSummary';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
+import { useRecommendations } from '../hooks/useRecommendations';
 import { useRestTimer } from '../hooks/useRestTimer';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
@@ -41,6 +42,7 @@ export default function SessionScreen() {
   const sessionId = /^\d+$/.test(String(id ?? '')) ? Number(id) : null;
   const { state: db, retry } = useDatabase();
   const nameOf = useExerciseName();
+  const recs = useRecommendations();
   const repos = db.status === 'ready' ? db.repos : null;
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -261,6 +263,7 @@ export default function SessionScreen() {
             name={nameFor(se)}
             tracking={tracking}
             planned={se.plan ? summarizeTargets(t, se.plan) : null}
+            hints={byId.get(se.exerciseId) ? recs.notesOf(recs.assess(byId.get(se.exerciseId)!), false) : []}
             sets={se.sets}
             entry={open ? {
               draft: draftFor(se), issues: issues[se.id] ?? {}, saving,

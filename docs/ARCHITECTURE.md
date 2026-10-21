@@ -392,6 +392,18 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **Tested (Node, mocks):** the Workouts tab (no sample content, ordering, deletion, resume banner, links, failure states, Arabic) and, unchanged, the detail, builder, session, history and statistics screens. **Not verified on a device:** native SQLite, tab layout, screen-reader output, RTL.
 
+## 5m. Phase 4 - milestone 4.7: Profile settings as exercise hints
+
+**What it is.** The Profile's "caution areas" and "experience level" now produce small hints on real exercises: in the exercise library (rows and detail), the workout builder (picker and rows), a saved workout's detail and the running session. Nothing is hidden, blocked or removed; the settings are unchanged and stay editable. No migration, no repository change. `domain/recommendations.ts` (pure) and `hooks/useRecommendations.ts` (translated lines) hold the logic.
+
+**What the data supports (and no more).** The library records the MUSCLES an exercise works and its equipment, not which joints it loads. So a caution area is checked only through a muscle that stands in for it: `shoulders` -> the shoulders muscle (covered); `wrists` -> forearms (only partly covered: supporting body weight and impact are not recorded); `knees`, `ankles`, `lower back` and `neck` have no reliable counterpart (calf-muscle data in particular says too little about how the ankle joint is loaded), so NO exercise is ever flagged for them and the person is told so. An exercise is flagged when the mapped muscle is its main or a supporting muscle ("Caution area: Shoulders"). Where an area is chosen but not fully checkable, the library, builder and workout screens show a short "About these hints" card (not checked / only partly checked, plus a disclaimer that this is general, not medical advice and no guarantee of safety); the Profile caution panel lists, before anything is chosen, which areas are checked, partly checked or not checked. The app does not diagnose injuries or claim an exercise is safe.
+
+**Experience level.** Only beginners get hints, and only from equipment, the one thing the library records that relates to technique: bodyweight, machine, band and cardio machine are marked "Easy to start with"; barbell and kettlebell "More technique needed: start light"; dumbbell, cable and "other" get no mark. Intermediate and advanced get none. Starting targets are not changed by level (nothing in the data defends specific numbers), unlike the old sample player.
+
+**Ordering.** Only the workout builder's picker is reordered: exercises touching a caution area go after the others, and for a beginner easy-to-start ones come first; with no relevant setting the order is unchanged. Every exercise stays reachable (the picker now lists up to 100).
+
+**Tested (Node, mocks):** the mapping and its edge cases (including that the unmapped areas flag nothing across the whole library, and a mutation check), the picker order, each screen's hints and limits in English and Arabic, and the Profile coverage text. **Not verified on a device:** layout, screen-reader output, RTL. The Arabic wording is mine and needs a native speaker's review.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a

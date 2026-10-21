@@ -17,6 +17,7 @@ import { formFromSnapshot, planProfileSave, profileView, type ProfileForm, type 
 import { announce } from '../services/accessibility';
 import { playSound } from '../services/soundService';
 import { colors, radius } from '../theme';
+import { CAUTION_MAP } from '../domain/recommendations';
 import type { CautionArea, ExperienceLevel, Language } from '../types/settings';
 
 const LEVELS: ExperienceLevel[] = ['beginner', 'intermediate', 'advanced'];
@@ -106,6 +107,10 @@ export default function ProfileScreen() {
   const cautionSummary = settings.cautionAreas.length
     ? settings.cautionAreas.map((a) => t(`profile.areas.${a}`)).join(', ')
     : t('profile.none');
+
+  // which areas the exercise hints can check (see domain/recommendations.ts): all six, so the limits are visible before choosing
+  const list = (cov: 'muscle' | 'partial' | 'none') => AREAS.filter((a) => CAUTION_MAP[a].coverage === cov).map((a) => t(`profile.areas.${a}`)).join(', ');
+  const coverageText = t('recs.profileCoverage', { checked: list('muscle'), partial: list('partial'), none: list('none') });
 
   const legacyError = db.status === 'ready' ? db.legacyError : null;
 
@@ -232,7 +237,8 @@ export default function ProfileScreen() {
           onPress={() => togglePanel('experience')}
         />
         {panel === 'experience' ? (
-          <View style={styles.panel} accessibilityRole="radiogroup">
+          <View style={styles.panel}>
+          <View style={styles.levelRow} accessibilityRole="radiogroup">
             {LEVELS.map((l) => {
               const active = settings.experience === l;
               return (
@@ -252,6 +258,8 @@ export default function ProfileScreen() {
                 </Pressable>
               );
             })}
+          </View>
+            <AppText size={11} color={colors.muted}>{t('profile.levelNote')}</AppText>
           </View>
         ) : null}
 
@@ -286,6 +294,7 @@ export default function ProfileScreen() {
               })}
             </View>
             <AppText size={11} color={colors.muted}>{t('profile.cautionNote')}</AppText>
+            <AppText size={11} color={colors.muted}>{coverageText}</AppText>
           </View>
         ) : null}
 
@@ -336,6 +345,7 @@ const styles = StyleSheet.create({
   savedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   group: { padding: 8, gap: 8, borderRadius: radius.lg },
   panel: { paddingHorizontal: 12, paddingBottom: 6, gap: 8 },
+  levelRow: { gap: 8 },
   option: { paddingVertical: 11, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.75)' },
   optionActive: { backgroundColor: colors.dark },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

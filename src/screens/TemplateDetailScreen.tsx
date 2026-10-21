@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AppHeader, goBack } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
 import { GlassCard } from '../components/GlassCard';
+import { HintLines, HintsCard } from '../components/HintsCard';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { useDatabase } from '../context/DatabaseContext';
@@ -13,6 +14,7 @@ import { canStartFromTemplate, startFailureKey } from '../domain/sessionStart';
 import { targetSummary } from '../domain/templateSummary';
 import { uniqueCopyName } from '../domain/templateBuilder';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
+import { useRecommendations } from '../hooks/useRecommendations';
 import { useActiveSession } from '../hooks/useActiveSession';
 import { useTemplates } from '../hooks/useTemplates';
 import { announce } from '../services/accessibility';
@@ -25,6 +27,7 @@ export default function TemplateDetailScreen() {
   const { state: db } = useDatabase();
   const { state, retry, retryDatabase } = useTemplates();
   const nameOf = useExerciseName();
+  const recs = useRecommendations();
   const active = useActiveSession();
   const [starting, setStarting] = useState(false);
   // set synchronously, so two taps in the same frame can't both reach the database; released when the screen loses focus
@@ -150,14 +153,17 @@ export default function TemplateDetailScreen() {
         {template.exercises.map((e) => {
           const ex = byId.get(e.exerciseId);
           const name = ex ? nameOf(ex) : '';
+          const hints = ex ? recs.notesOf(recs.assess(ex), false) : [];
           return (
-            <View key={e.id} style={styles.item} accessible accessibilityLabel={`${e.position}. ${name}, ${targetSummary(t, e)}`}>
+            <View key={e.id} style={styles.item} accessible accessibilityLabel={[`${e.position}. ${name}`, targetSummary(t, e), ...hints].join(', ')}>
               <AppText size={15} weight="medium" color={colors.ink}>{`${e.position}. ${name}`}</AppText>
               <AppText size={12} color={colors.muted}>{targetSummary(t, e)}</AppText>
+              <HintLines lines={hints} />
             </View>
           );
         })}
       </GlassCard>
+      <HintsCard lines={recs.limits} />
 
       <View style={styles.actions}>
         {inProgress ? (

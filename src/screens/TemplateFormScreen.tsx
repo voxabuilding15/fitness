@@ -6,6 +6,7 @@ import { AppHeader, goBack } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
 import { TextField } from '../components/FormControls';
 import { GlassCard } from '../components/GlassCard';
+import { HintLines, HintsCard } from '../components/HintsCard';
 import { Screen } from '../components/Screen';
 import { useApp } from '../context/AppContext';
 import { useDatabase } from '../context/DatabaseContext';
@@ -17,6 +18,7 @@ import {
   type DraftItem, type ItemField, type TemplateDraft, type TemplateIssues,
 } from '../domain/templateBuilder';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
+import { useRecommendations } from '../hooks/useRecommendations';
 import { useTemplates } from '../hooks/useTemplates';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
@@ -30,6 +32,7 @@ export default function TemplateFormScreen() {
   const { state: db } = useDatabase();
   const { state, retry, retryDatabase } = useTemplates();
   const nameOf = useExerciseName();
+  const recs = useRecommendations();
   const [edited, setEdited] = useState<TemplateDraft | null>(null);
   const [issues, setIssues] = useState<TemplateIssues>({});
   const [saving, setSaving] = useState(false);
@@ -75,7 +78,10 @@ export default function TemplateFormScreen() {
     setSaveError(null);
   };
 
-  const pickable = filterExercises(state.exercises, { ...NO_FILTER, query }, nameOf);
+  // exercises that touch a caution area come last, and for a beginner the easy-to-start ones first; otherwise the order is unchanged
+  const pickable = filterExercises(state.exercises, { ...NO_FILTER, query }, nameOf)
+    .map((e) => ({ e, a: recs.assess(e) }))
+    .sort((x, y) => recs.compareForPicker(x.a, y.a));
   const add = (ex: Exercise) => {
     if (draft.items.length >= MAX_TEMPLATE_EXERCISES) return announce(t('templates.pickerLimit'));
     change(addExercise(draft, ex));
@@ -160,6 +166,7 @@ export default function TemplateFormScreen() {
                 <AppText size={15} weight="semibold" color={colors.ink} style={styles.flex}>{`${index + 1}. ${name}`}</AppText>
                 {ex?.isArchived ? <AppText size={10} color={colors.muted}>{t('templates.hiddenExercise')}</AppText> : null}
               </View>
+              {ex ? <HintLines lines={recs.notesOf(recs.assess(ex), false)} /> : null}
               <View style={styles.row}>
                 <Pressable accessibilityRole="button" accessibilityLabel={`${t('templates.moveUp')}: ${name}`} accessibilityState={{ disabled: index === 0 }} disabled={index === 0} onPress={() => move(item, -1)} style={[styles.small, index === 0 && styles.dim]}>
                   <AppText size={16} color={colors.dark} align="center">↑</AppText>
@@ -199,10 +206,12 @@ export default function TemplateFormScreen() {
             style={[styles.search, { textAlign: isRTL ? 'right' : 'left', writingDirection: isRTL ? 'rtl' : 'ltr' }]}
           />
           {pickable.length === 0 ? <AppText size={13} color={colors.ink}>{t('templates.pickerEmpty')}</AppText> : null}
-          {pickable.slice(0, 40).map((ex) => (
-            <Pressable key={ex.id} accessibilityRole="button" accessibilityLabel={`${t('templates.add')}: ${nameOf(ex)}`} onPress={() => add(ex)} style={styles.pickRow}>
+          <HintsCard lines={recs.limits} />
+          {pickable.slice(0, 100).map(({ e: ex, a }) => (
+            <Pressable key={ex.id} accessibilityRole="button" accessibilityLabel={[`${t('templates.add')}: ${nameOf(ex)}`, ...recs.notesOf(a)].join(', ')} onPress={() => add(ex)} style={styles.pickRow}>
               <AppText size={14} color={colors.ink}>{nameOf(ex)}</AppText>
               <AppText size={11} color={colors.muted}>{`${t(`library.muscles.${ex.primaryMuscle}`)} · ${t(`library.equipmentNames.${ex.equipment}`)}`}</AppText>
+              <HintLines lines={recs.notesOf(a)} />
             </Pressable>
           ))}
           <Pressable accessibilityRole="button" onPress={() => { setPicking(false); setQuery(''); }} style={[styles.btn, styles.btnGhost]}>

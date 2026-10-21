@@ -117,7 +117,8 @@
     "caution": "Caution areas",
     "language": "Language",
     "saved": "Profile saved",
-    "cautionNote": "Used only to flag exercises that load these areas. This is not medical advice; consult a professional about injuries.",
+    "cautionNote": "Exercises that work the muscles linked to these areas are marked in the library, the workout builder and your workouts. This is not medical advice; consult a professional about injuries.",
+    "levelNote": "For beginners, the exercise library and the workout builder mark exercises that are easy to start with, and equipment that needs more technique. Other levels get no marks.",
     "levels": { "beginner": "Beginner", "intermediate": "Intermediate", "advanced": "Advanced" },
     "areas": {
       "neck": "Neck", "shoulders": "Shoulders", "lowerBack": "Lower back",
@@ -295,6 +296,16 @@
     "loadingMore": "Loading…",
     "moreLoaded": "More workouts loaded. Workouts shown: {{count}}.",
     "moreFailed": "More workouts couldn't be loaded."
+  },
+  "recs": {
+    "cautionNote": "Caution area: {{areas}}",
+    "friendly": "Easy to start with",
+    "technical": "More technique needed: start light",
+    "limitsTitle": "About these hints",
+    "notChecked": "Not checked: {{areas}}. The exercise library doesn't record how exercises load these areas, so no exercise is flagged for them.",
+    "partlyChecked": "Only partly checked: {{areas}}. Exercises are matched through the muscles the library records (forearms for wrists); supporting your body weight or impact is not covered.",
+    "disclaimer": "These hints are general and based only on the exercise library. They are not medical advice and do not guarantee that an exercise is safe for you.",
+    "profileCoverage": "Checked: {{checked}}. Partly checked: {{partial}}. Not checked: {{none}}."
   },
   "liveSession": {
     "startTitle": "Workout",

@@ -17,6 +17,7 @@ import SessionScreen from '../../screens/SessionScreen';
 const TestRenderer = require('react-test-renderer');
 const { act } = TestRenderer;
 
+let mockSettings: { experience: 'beginner' | 'intermediate' | 'advanced'; cautionAreas: string[] } = { experience: 'intermediate', cautionAreas: [] };
 let mockDb: { state: unknown; retry: () => void };
 let mockParams: Record<string, string> = {};
 let mockLocale: 'en' | 'ar' = 'en';
@@ -32,7 +33,7 @@ jest.mock('react-i18next', () => {
   const values = { en: { t: tFor('en') }, ar: { t: tFor('ar') } };
   return { useTranslation: () => values[mockLocale] };
 });
-jest.mock('../../context/AppContext', () => ({ useApp: () => ({ isRTL: mockLocale === 'ar' }) }));
+jest.mock('../../context/AppContext', () => ({ useApp: () => ({ isRTL: mockLocale === 'ar', settings: mockSettings }) }));
 jest.mock('../../context/DatabaseContext', () => ({ useDatabase: () => mockDb }));
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -90,6 +91,7 @@ const workout = async (name: string, end: 'complete' | 'discard' | 'leave' = 'co
 };
 
 beforeEach(async () => {
+  mockSettings = { experience: 'intermediate', cautionAreas: [] };
   env = await createRepoEnv();
   unwrap(await runSeed(env.db, SEED_PACK, env.clock));
   exerciseId = unwrap(await env.repos.exercises.list()).find((e) => e.slug === 'bench_press')!.id;
