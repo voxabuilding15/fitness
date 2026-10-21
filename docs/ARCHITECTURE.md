@@ -12,15 +12,14 @@ backend, account system or network API.
 
 ```
 src/
-  app/          Expo Router routes: (tabs)/{index,workouts,statistics,profile}, workout/[id], reminders
+  app/          Expo Router routes: (tabs)/{index,workouts,statistics,profile}, templates/*, exercises/*, session/[id], history, reminders
                 (each route re-exports a screen)
-  screens/      Home, Workouts, Statistics, Profile, WorkoutDetails, ReminderSettings
-  components/   Shared UI (AppText, Screen, BottomNavigation, WorkoutCard, StatCard, charts, ...)
+  screens/      Home, Workouts, Statistics, Profile, Template*, Exercise*, Session, History, ReminderSettings
+  components/   Shared UI (AppText, Screen, BottomNavigation, StatCard, FormControls, charts, ...)
   context/      AppContext: profile + settings state, language/RTL, persistence calls
-  hooks/        useFormat, useIsNarrow, useWorkoutSession
-  services/     activityService (sample data), profileService, settingsService, workoutService,
-                workoutSession (pure reducer), reminderService, soundService, storage (AsyncStorage)
-  data/         workouts.ts  (3 hard-coded workouts, 32 exercises)
+  hooks/        useFormat, useIsNarrow, useTemplates, useHome, useStatistics, useWorkoutHistory, ...
+  services/     profileService, settingsService, reminderService, soundService, storage (AsyncStorage)
+  data/         exerciseLibrary.ts  (the 68 built-in exercises, seeded into SQLite)
   i18n/, locales/   i18next; en.json and ar.json
   types/        activity, profile, settings, workout
   __tests__/    logic.test.ts (17 tests)
@@ -99,7 +98,7 @@ renderer only; not yet verified on a physical device.
 
 **What is real vs sample today:**
 - Real: language, profile, goals, settings, reminders, the exercise library, saved workouts, workout sessions and history, the Statistics screen and the Home screen's weekly totals, workout card and search (sections 5e-5k).
-- Sample / hard-coded (labelled as demo where shown): the demo workout cards on the Workouts tab and the demo workout player (`/workout/[id]`, `data/workouts.ts`, per-workout calorie and minute figures).
+- Sample data: none is left in the app screens.
 
 **Tests today:** Jest. Services, locales and the whole data layer are tested; screens, components, hooks and the React
 contexts have **no** automated tests (0% coverage). Coverage numbers are informational only.
@@ -382,6 +381,16 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 **Honesty rules.** Only completed sessions count; an empty week shows zeros; if any read fails the block shows a failure with a retry (the greeting is independent and unaffected); with the database unavailable (for example on web) it says so. The bundled sample provider (`services/activityService.ts`) and its tests were removed; `types/activity.ts` keeps only `ChartPoint`. The device notice now says Home shows only workouts saved on this device.
 
 **Still demo.** The Workouts tab's demo cards and the demo workout player. **Tested (Node, mocks):** the pure summary, and Home against Node SQLite (empty, totals and goal progress, unfinished and discarded workouts excluded, week boundary, newest workout, resume, search, failure states, Arabic). **Not verified on a device:** native SQLite, layout, screen-reader output, RTL.
+
+## 5l. Phase 4 - milestone 4.6: the Workouts tab runs on saved workouts
+
+**What changed.** The Workouts tab now lists the person's saved workouts (`useTemplates`, newest edit first), a banner to resume a workout in progress, "Create a workout", and links to the exercise library and the history. A workout opens on its detail screen, where the existing flow applies: Start (one session at a time) -> `/session/[id]` (log sets, rest timer, finish or discard) -> history and statistics. The built-in sample workouts and the sample workout player are gone: `data/workouts.ts`, `types/workout.ts`, `WorkoutDetailsScreen` and its route `/workout/[id]`, `WorkoutCard`, `WorkoutArt`, `HeartRateWave`, `services/workoutSession.ts` (the timer reducer), `services/workoutService.ts` and `hooks/useWorkoutSession.ts`. The old `/templates` list route was folded into the Workouts tab; `/templates/[id]` and `/templates/form` remain. Unused strings (the sample workouts' titles, the player's `session.*` block, the Home card chips) were removed from both languages.
+
+**Preserved.** No database or repository change, so history, completed-session immutability (migration 009) and resuming an active session are untouched (their tests still pass). Resuming works from the Workouts tab banner, the Home card and the workout detail screen.
+
+**Behaviour that no longer exists.** The sample player scaled reps by the profile's experience level and flagged exercises that overlap the profile's caution areas. The real flow has no such adjustment: the "experience level" and "caution areas" settings on the Profile screen are still stored but do not affect workouts. Whether to wire them to the exercise library (muscles to caution areas) is a product decision.
+
+**Tested (Node, mocks):** the Workouts tab (no sample content, ordering, deletion, resume banner, links, failure states, Arabic) and, unchanged, the detail, builder, session, history and statistics screens. **Not verified on a device:** native SQLite, tab layout, screen-reader output, RTL.
 
 ## 6. Open product decisions and future work (documented, not changed)
 

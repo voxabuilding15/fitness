@@ -13,7 +13,7 @@ import en from '../../locales/en.json';
 import ar from '../../locales/ar.json';
 import SessionScreen from '../../screens/SessionScreen';
 import TemplateDetailScreen from '../../screens/TemplateDetailScreen';
-import TemplatesScreen from '../../screens/TemplatesScreen';
+import WorkoutsScreen from '../../screens/WorkoutsScreen';
 
 const TestRenderer = require('react-test-renderer');
 const { act } = TestRenderer;
@@ -345,12 +345,12 @@ describe('SessionScreen', () => {
 describe('workout list banner', () => {
   it('shows a way back into the workout in progress, and nothing when there is none', async () => {
     await makeTemplate();
-    await mount(TemplatesScreen);
+    await mount(WorkoutsScreen);
     expect(allText().some((x: string) => x.startsWith('Workout in progress'))).toBe(false);
     act(() => tree.unmount());
     const t = unwrap(await env.repos.templates.list())[0];
     const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
-    await mount(TemplatesScreen);
+    await mount(WorkoutsScreen);
     expect(has('Workout in progress: Push day')).toBe(true);
     const banner = tree.root.findAll((n: any) => n.props.accessibilityLabel === 'Workout in progress: Push day' && typeof n.props.onPress === 'function')[0];
     await act(async () => { await banner.props.onPress(); });

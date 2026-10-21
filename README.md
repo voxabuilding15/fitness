@@ -1,7 +1,7 @@
 # Fitness — health snapshot app
 
 React Native (Expo SDK 58, TypeScript, Expo Router) app reproducing a three-screen fitness UI:
-**Home**, **Statistics** and **Profile / settings**, plus Workouts, Workout details and Reminders.
+**Home**, **Statistics** and **Profile / settings**, plus Workouts (your saved workouts, exercise library, workout sessions and history) and Reminders.
 English (LTR) and Arabic (RTL) are fully supported.
 
 ## Run
@@ -33,14 +33,13 @@ Requires Node `^22.13.0 || ^24.3.0` (see `.nvmrc`; `node:sqlite` is used by the 
 ## Structure
 
 ```
-src/app/          Expo Router routes ((tabs) = Home, Workouts, Statistics, Profile; workout/[id]; reminders)
+src/app/          Expo Router routes ((tabs) = Home, Workouts, Statistics, Profile; templates, exercises, session, history; reminders)
 src/screens/      Screen implementations
-src/components/   AppHeader, BottomNavigation, StatCard, WorkoutCard, MetricSelector,
-                  WeeklyActivityChart, HeartRateWave, SettingRow, ProfileSummaryCard, …
+src/components/   AppHeader, BottomNavigation, StatCard, MetricSelector, FormControls,
+                  SessionExerciseCard, WeeklyActivityChart, SettingRow, ProfileSummaryCard, …
 src/domain/       Pure logic: Result/errors, dates, session rules, Zod schemas, repository interfaces
 src/db/           Offline SQLite data layer (migrations, repositories, backups); profile and goals use it
-src/services/     activityService (demo data + provider seam), profileService, settingsService,
-                  workoutSession (pure reducer), reminderService, soundService, storage
+src/services/     profileService, settingsService, reminderService, soundService, storage
 src/locales/      en.json, ar.json
 src/types/        activity, profile, settings, workout
 ```
@@ -56,7 +55,7 @@ Numbers stay in Latin digits in both languages.
 
 All activity values (steps, calories, heart rate, durations) are **bundled demo data** and are labelled
 as such in the UI. Nothing is read from a sensor or health API. `ActivityProvider` in
-`src/services/activityService.ts` is the seam for a future HealthKit / Health Connect source.
+There is no wearable or health-platform source: every number in the app comes from what the person saved on the device.
 "Regularity" = share of the daily step goal (8,000) reached each day. Caution areas only flag exercises
 and are not medical advice.
 

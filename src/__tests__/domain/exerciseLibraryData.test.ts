@@ -2,7 +2,6 @@ import { EXERCISE_LIBRARY, EXERCISE_LIBRARY_VERSION, SEED_PACK } from '../../dat
 import { seedPackSchema } from '../../db/seedRunner';
 import { exerciseNameKey, normalizeForSearch } from '../../domain/exerciseLibrary';
 import { EQUIPMENT, EXERCISE_CATEGORY, MUSCLE, TRACKING_TYPE } from '../../domain/schemas/enums';
-import { WORKOUTS } from '../../data/workouts';
 import en from '../../locales/en.json';
 import ar from '../../locales/ar.json';
 
@@ -64,10 +63,6 @@ describe('the built-in exercise library (content checks)', () => {
     for (const c of EXERCISE_CATEGORY) expect(EXERCISE_LIBRARY.some((e) => e.category === c)).toBe(true);
     expect(new Set(EXERCISE_LIBRARY.map((e) => e.equipment)).size).toBeGreaterThanOrEqual(6);
     expect(EXERCISE_LIBRARY.length).toBeGreaterThanOrEqual(60);
-  });
-  it('contains every exercise the demo workouts use (the same ids and translations)', () => {
-    const ids = new Set(EXERCISE_LIBRARY.map((e) => e.id));
-    for (const w of WORKOUTS) for (const e of w.exercises) expect({ id: e.id, inLibrary: ids.has(e.id) }).toEqual({ id: e.id, inLibrary: true });
   });
   it('ships no MET values, instructions or images (nothing unverified is presented as fact)', () => {
     for (const e of SEED_PACK.exercises!) expect(Object.keys(e).sort()).toEqual(['category', 'equipment', 'primaryMuscle', 'secondaryMuscles', 'slug', 'trackingType']);

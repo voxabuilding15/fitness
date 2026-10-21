@@ -52,9 +52,6 @@ jest.mock('../../services/soundService', () => ({ playSound: jest.fn() }));
 jest.mock('../../components/Screen', () => ({ Screen: (props: { children: unknown }) => props.children }));
 jest.mock('../../components/Icon', () => ({ Icon: () => null }));
 jest.mock('../../components/AppLogo', () => ({ AppLogo: () => null }));
-jest.mock('../../components/WorkoutArt', () => ({ WorkoutArt: () => null }));
-jest.mock('../../components/WeeklyActivityChart', () => ({ WeeklyActivityChart: () => null }));
-jest.mock('../../components/HeartRateWave', () => ({ HeartRateWave: () => null }));
 
 jest.setTimeout(30_000);
 

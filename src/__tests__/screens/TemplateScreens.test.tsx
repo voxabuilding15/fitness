@@ -13,7 +13,7 @@ import en from '../../locales/en.json';
 import ar from '../../locales/ar.json';
 import TemplateDetailScreen from '../../screens/TemplateDetailScreen';
 import TemplateFormScreen from '../../screens/TemplateFormScreen';
-import TemplatesScreen from '../../screens/TemplatesScreen';
+import WorkoutsScreen from '../../screens/WorkoutsScreen';
 
 const TestRenderer = require('react-test-renderer');
 const { act } = TestRenderer;
@@ -107,9 +107,9 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('TemplatesScreen (the list)', () => {
+describe('WorkoutsScreen (the saved-workout list)', () => {
   it('shows the empty state with a way to create the first workout', async () => {
-    await mount(TemplatesScreen);
+    await mount(WorkoutsScreen);
     expect(has(tpl.empty)).toBe(true);
     await pressText(tpl.create);
     expect(mockPush).toHaveBeenCalledWith('/templates/form');
@@ -118,7 +118,7 @@ describe('TemplatesScreen (the list)', () => {
 
   it('lists saved workouts with their exercise counts and opens one', async () => {
     const t = await makeTemplate();
-    await mount(TemplatesScreen);
+    await mount(WorkoutsScreen);
     expect(has('Push day')).toBe(true);
     expect(has('2 exercises')).toBe(true);
     await press((n) => n.props.accessibilityRole === 'button' && String(n.props.accessibilityLabel).startsWith('Push day'));
@@ -126,7 +126,7 @@ describe('TemplatesScreen (the list)', () => {
   });
 
   it('says so when the database is unavailable and retries through the database context', async () => {
-    await mount(TemplatesScreen, { status: 'unavailable', error: { kind: 'unavailable', reason: 'x' } });
+    await mount(WorkoutsScreen, { status: 'unavailable', error: { kind: 'unavailable', reason: 'x' } });
     expect(has(tpl.unavailable)).toBe(true);
     await pressText(tpl.reload);
     expect(mockDb.retry).toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe('TemplatesScreen (the list)', () => {
 
   it('a failed read is reported as a failure, never as "no workouts"', async () => {
     const repos = { ...env.repos, templates: { ...env.repos.templates, list: async () => ({ ok: false, error: { kind: 'unknown', message: 'boom' } }) } };
-    await mount(TemplatesScreen, { status: 'ready', repos });
+    await mount(WorkoutsScreen, { status: 'ready', repos });
     expect(has(tpl.readFailed)).toBe(true);
     expect(has(tpl.empty)).toBe(false);
   });
