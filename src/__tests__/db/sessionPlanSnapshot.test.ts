@@ -165,7 +165,7 @@ describe('upgrading a database that already holds sessions (v7 -> v8)', () => {
       sets: await db.all('SELECT * FROM session_sets ORDER BY id'),
     };
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir), clock: new ManualClock(T0) });
-    expect(r.ok && r.value).toMatchObject({ fromVersion: 7, toVersion: LATEST_VERSION, applied: [8] });
+    expect(r.ok && r.value).toMatchObject({ fromVersion: 7, toVersion: LATEST_VERSION, applied: [8, 9] });
     expect(await db.all('SELECT * FROM workout_sessions ORDER BY id')).toEqual(before.sessions);
     expect(await db.all('SELECT id,session_id,exercise_id,position FROM session_exercises ORDER BY id')).toEqual(before.exercises);
     expect(await db.all('SELECT * FROM session_sets ORDER BY id')).toEqual(before.sets);

@@ -12,5 +12,8 @@ export const canTransition = (from: SessionStatus, to: SessionStatus) => ALLOWED
 /** Only completed sessions count as workouts (never in_progress or discarded). */
 export const countsAsWorkout = (status: SessionStatus) => status === 'completed';
 
-/** Completed sessions may be corrected; in-progress ones are edited live; discarded ones are frozen. */
+/**
+ * In-progress sessions are edited live. Completed and discarded sessions are frozen as far as their exercises and sets
+ * go (enforced by triggers); a completed session's own name / rpe / end time can still be corrected, a discarded one's cannot.
+ */
 export const isEditable = (status: SessionStatus) => status !== 'discarded';

@@ -32,7 +32,7 @@ src/
 src/domain/        Pure TypeScript. Result/AppError, Clock, dates, session lifecycle rules, Zod input schemas,
                    entity models and the repository interfaces (domain/repositories.ts).
 src/db/            sqlDatabase.ts (SqlDriver interface) · database.ts (single connection, FIFO lock, transactions,
-                   foreign-key assertion) · mapDbError.ts · migrations/ (001-008 + runner) · backup.ts / expoBackup.ts ·
+                   foreign-key assertion) · mapDbError.ts · migrations/ (001-009 + runner) · backup.ts / expoBackup.ts ·
                    repositories/ (9 implementations) · seedRunner.ts (applies a versioned pack; the 68-exercise pack lives in src/data/exerciseLibrary.ts) · seedStartup.ts · legacyImport.ts
                    (one-time import of the old AsyncStorage profile, run by legacyStartup.ts when the database is ready) · initDatabase.ts · expoSqliteDriver.ts · appDatabase(.web).ts
 src/db/testing/    TEST-ONLY: node:sqlite driver, file backup strategy, test helpers. Never imported by app code.
@@ -48,8 +48,9 @@ Key design points (each is covered by a test):
   fails (database unavailable) if they are not enforced. expo-sqlite never enables them by itself.
 - **Schema:** STRICT tables, explicit `NOT NULL` (a bare `CHECK` lets NULL through), real-calendar-date checks
   (`date(x) IS x`), triggers for the session lifecycle: `in_progress -> completed | discarded`, both terminal;
-  discarded sessions are frozen and never counted; completed sessions can be corrected but keep >= 1 completed set and
-  consistent timestamps.
+  discarded sessions are frozen and never counted; from migration 009 the exercises and sets of a COMPLETED session are
+  immutable too (see section 5h). Only a completed session's own name, rpe and end time can still be corrected, and the end
+  time keeps consistent with its sets.
 - **Migrations:** `PRAGMA user_version`; all pending migrations in one transaction (all or nothing). A database that
   already holds data is backed up and the backup **validated** first; if that fails nothing is changed and the database
   is reported unavailable. A **row-loss guard** compares per-table row counts before and after the migration and rolls
@@ -337,9 +338,27 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **What the session screen shows.** The persisted session read back from the database (name, status, local start date, exercises in order, recorded targets). The screen no longer reads the template, so renaming, editing or deleting it cannot change what an old session shows.
 
-**Not in this milestone:** logging sets, rest timer, finishing or discarding a session, summaries. Until a later milestone adds finish/discard, a started session stays in progress, blocks starting another, and can only be resumed.
+**Not in 4.1:** logging sets, a rest timer, finishing or discarding (added in 4.2, section 5h).
 
 **Tested:** repository behaviour (order, association, conflict rollback, concurrent starts, template deleted or edited later), the pure helpers, and the screens against Node SQLite in English and Arabic. **Not verified on a device:** native SQLite, navigation animation and back-stack behaviour, screen-reader output, RTL layout.
+
+## 5h. Phase 4 - milestone 4.2: running a workout (log sets, rest timer, finish, discard)
+
+**No migration.** Everything uses existing repository methods: `addSet`, `deleteSet`, `complete`, `discard`, `get`, `getActive`. The session screen (`/session/[id]`) is now the execution screen.
+
+**Logging.** Each exercise card has the inputs its `tracking_type` needs (`domain/setEntry.ts`): weight (kg) and reps; reps; seconds; or distance (km) and minutes (stored as metres and seconds). All required fields must be typed: nothing is guessed, a weight of 0 must be typed, reps are 1-1000, text is read by `parseNumber` (rejects NaN, Infinity, exponents, ambiguous separators, negatives). Pressing "Log set" calls `addSet` with `isCompleted: true`; the session is then read back, so the list always shows saved rows. The next set's inputs start from the last saved set of that exercise but are never logged unless the person presses the button. Typed-but-unsaved values are local state and are lost on leaving the screen; saved sets are not. A set can be removed after an inline confirmation (`deleteSet` renumbers).
+
+**One write at a time.** A synchronous lock in the screen ignores a second write while one is running (rapid taps), and the buttons are disabled meanwhile. If a write succeeds but the read-back fails, the screen keeps what it shows and says the change was saved but could not be refreshed. If a write is refused because the workout ended elsewhere (`invalid_transition` / `immutable`), the screen says so and reloads.
+
+**Rest timer.** `domain/restTimer.ts` stores when rest ends, not a counter, so a late tick or a spell in the background does not make it drift; `hooks/useRestTimer.ts` re-renders about four times a second while running. The duration is the rest recorded in the session's plan snapshot (no button when no plan was recorded or the rest is 0). Start, Skip (ends a running timer) and Stop (also dismisses the "rest is over" state) are explicit; the end is announced once. The timer is NOT persisted and never writes anything: leaving the screen drops it, and completed data comes only from saved sets.
+
+**Finish.** Needs at least one completed set (the database enforces it too). After a confirmation, `complete` sets `status = completed` and `ended_at` (not before the start or the last set). The screen then shows a summary computed by `summarizeSession` from the saved sets: sets, exercises with sets, total reps, weight x reps volume, and elapsed minutes. It is read-only afterwards.
+
+**Completed workouts are immutable (migration 009).** Once a session is `completed`, the database rejects every INSERT, UPDATE and DELETE of its `session_exercises` and `session_sets` rows (`FITNESS_SESSION_COMPLETED`, mapped to `immutable / completed_session`). Both the old and the new parent are checked on UPDATE, so a row cannot be moved into or out of a completed session, and re-keying is refused. This is enforced for every caller, not only this screen, so a stale screen, a repeated tap or a concurrent write cannot change a finished workout; before 009 such writes were accepted and stamped with a made-up time clamped to the end. Discarded sessions keep their own protection (`discarded_session`); in-progress sessions are unaffected. Still allowed on a completed session: its own `name`, `rpe` and `ended_at` via `updateDetails` (the end can't precede a set or the start). Deleting a whole session (explicit history removal, which cascades; SQLite's foreign-key cascade does not fire child triggers) is unchanged and has no UI path. Migration 009 drops the three "keep >= 1 completed set when a completed session is corrected" triggers from 003, which it makes unreachable; the `complete` transition still needs a completed set. When the screen's write is rejected as `immutable` or `invalid_transition` it says the workout has already ended and reloads from the database, so it never shows a change the database refused.
+
+**Discard (decision).** Discard keeps history: `discard` sets `status = discarded` and `discarded_at`; sets and exercises stay stored, frozen by triggers, and are never counted as a workout (`countCompleted` and statistics only use `completed`). It frees the single in-progress slot, so a stale or abandoned session can never block starting another workout. The confirmation says how many logged sets are kept. A discarded session opens read-only with a note. Nothing is deleted, so no history can be lost by this choice.
+
+**Tested (Node, mocks):** the pure helpers, the triggers (insert/update/delete/move on completed, discarded and in-progress sessions, and a v8 -> v9 upgrade of a database holding completed history), and the screen against Node SQLite in English and Arabic: set entry and persistence, resume, invalid values, timed and distance exercises, duplicate taps, write/read failures, set removal, rest timer (with a controlled clock), finish with confirmation and summary, discard with confirmation and a following new start, writes from a stale screen after the workout ended elsewhere, and a session without a recorded plan. **Not verified on a device:** native SQLite, keyboard behaviour with several inputs, real timing of the timer when the app is backgrounded, screen-reader output, RTL layout.
 
 ## 6. Open product decisions and future work (documented, not changed)
 

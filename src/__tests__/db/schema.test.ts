@@ -254,38 +254,69 @@ describe('workout sessions: lifecycle', () => {
     });
   });
 
-  describe('corrections to a COMPLETED session', () => {
+  describe('a COMPLETED session: exercises and sets are immutable (migration 009)', () => {
+    const COMPLETED = { kind: 'immutable', reason: 'completed_session' } as const;
     beforeEach(async () => {
       await active();
       await db.exec(addSet(1, 2, 'weight_kg,reps,is_completed,completed_at', `85,6,1,${T + H + 60_000}`));
       await db.exec(complete());
     });
-    it('allows correcting set values while the session stays completed', async () => {
-      await accepts(`UPDATE session_sets SET weight_kg=82.5, reps=7 WHERE session_exercise_id=1 AND set_number=1`);
-      await accepts(addSet(1, 3, 'weight_kg,reps,is_completed,completed_at', `70,10,1,${T + H + 120_000}`));
-      await accepts(addEx(1, 2, 2)); // add a forgotten exercise
-      await accepts(addSet(2, 1, 'reps,is_completed,completed_at', `12,1,${T + H + 180_000}`));
+    it('rejects every insert, update and delete of its exercises and sets, and nothing changes', async () => {
+      await rejects(addEx(1, 2, 2), COMPLETED);
+      await rejects(addSet(1, 3, 'weight_kg,reps,is_completed,completed_at', `70,10,1,${T + H + 120_000}`), COMPLETED);
+      await rejects(`UPDATE session_sets SET weight_kg=82.5, reps=7 WHERE session_exercise_id=1 AND set_number=1`, COMPLETED);
+      await rejects(`UPDATE session_sets SET is_completed=0, completed_at=NULL WHERE set_number=2`, COMPLETED);
+      await rejects(`DELETE FROM session_sets WHERE set_number=2`, COMPLETED);
+      await rejects(`DELETE FROM session_sets WHERE set_number=1`, COMPLETED); // also the one that used to be "the last completed set"
+      await rejects(`UPDATE session_exercises SET position=5 WHERE id=1`, COMPLETED);
+      await rejects(`DELETE FROM session_exercises WHERE id=1`, COMPLETED);
+      expect(await count('SELECT count(*) c FROM session_sets')).toBe(2);
+      expect(await count('SELECT count(*) c FROM session_exercises')).toBe(1);
+      expect((await db.first<{ weight_kg: number }>('SELECT weight_kg FROM session_sets WHERE set_number=1'))!.weight_kg).toBe(80);
+    });
+    it('cannot be bypassed by moving rows into or out of the completed session', async () => {
+      await db.exec(session('in_progress', { id: 2 }));
+      await db.exec(addEx(2, 2, 1)); // session_exercise 2, in the running session
+      await db.exec(addSet(2, 1, 'reps,is_completed,completed_at', `10,1,${T + H}`)); // set 3
+      await rejects(`UPDATE session_exercises SET session_id=1, position=7 WHERE id=2`, COMPLETED); // exercise into
+      await rejects(`UPDATE session_exercises SET session_id=2, position=7 WHERE id=1`, COMPLETED); // exercise out of
+      await rejects(`UPDATE session_sets SET session_exercise_id=1, set_number=9 WHERE id=3`, COMPLETED); // set into
+      await rejects(`UPDATE session_sets SET session_exercise_id=2, set_number=9 WHERE id=1`, COMPLETED); // set out of
+      await rejects(`UPDATE session_sets SET id=77 WHERE id=1`, COMPLETED); // re-keying
+      expect(await count('SELECT count(*) c FROM session_sets WHERE session_exercise_id=1')).toBe(2);
+      expect(await count('SELECT count(*) c FROM session_sets WHERE session_exercise_id=2')).toBe(1);
+    });
+    it('its own details can still be corrected: name, rpe, and the end time', async () => {
       await accepts(`UPDATE workout_sessions SET name='Push day (fixed)', rpe=8 WHERE id=1`);
       expect(await status()).toBe('completed');
     });
-    it('allows deleting a set as long as one completed set remains', async () => {
-      await accepts(`DELETE FROM session_sets WHERE session_exercise_id=1 AND set_number=2`);
-      expect(await count('SELECT count(*) c FROM session_sets')).toBe(1);
-    });
-    it('rejects corrections that would leave no completed set (delete / un-complete / remove the exercise)', async () => {
-      await db.exec(`DELETE FROM session_sets WHERE set_number=2`);
-      await rejects(`DELETE FROM session_sets WHERE set_number=1`, { kind: 'invalid_transition', reason: 'no_completed_sets' });
-      await rejects(`UPDATE session_sets SET is_completed=0, completed_at=NULL WHERE set_number=1`, { kind: 'invalid_transition', reason: 'no_completed_sets' });
-      await rejects(`DELETE FROM session_exercises WHERE id=1`, { kind: 'invalid_transition', reason: 'no_completed_sets' });
-      expect(await count('SELECT count(*) c FROM session_sets')).toBe(1); // everything was rolled back
-    });
-    it('keeps timestamps consistent: sets must fall within [started_at, ended_at]; the end cannot precede a set', async () => {
-      await rejects(`UPDATE session_sets SET completed_at=${T - 1} WHERE set_number=1`, { kind: 'constraint', constraint: 'check' });
-      await rejects(`UPDATE session_sets SET completed_at=${T + 5 * H} WHERE set_number=1`, { kind: 'constraint', constraint: 'check' });
-      await rejects(addSet(1, 9, 'reps,is_completed,completed_at', `5,1,${T + 9 * H}`), { kind: 'constraint', constraint: 'check' });
+    it('keeps timestamps consistent: the end cannot precede a set or the start, and moving it later is fine', async () => {
       await rejects(`UPDATE workout_sessions SET ended_at=${T + H} WHERE id=1`, { kind: 'constraint', constraint: 'check' }); // before the last set
       await rejects(`UPDATE workout_sessions SET ended_at=${T - 1} WHERE id=1`, CHECK);
-      await accepts(`UPDATE workout_sessions SET ended_at=${T + 4 * H} WHERE id=1`); // moving the end later is fine
+      await accepts(`UPDATE workout_sessions SET ended_at=${T + 4 * H} WHERE id=1`);
+    });
+  });
+
+  describe('an IN-PROGRESS session is unaffected: logging, editing and removing still work', () => {
+    beforeEach(async () => { await active(); });
+    it('accepts the normal operations of a live workout', async () => {
+      await accepts(addSet(1, 2, 'weight_kg,reps,is_completed,completed_at', `85,6,1,${T + H + 60_000}`));
+      await accepts(`UPDATE session_sets SET weight_kg=82.5, reps=7 WHERE set_number=1`);
+      await accepts(addEx(1, 2, 2));
+      await accepts(addSet(2, 1, 'reps,is_completed,completed_at', `12,1,${T + H + 180_000}`));
+      await accepts(`DELETE FROM session_sets WHERE set_number=2 AND session_exercise_id=1`);
+      await accepts(`DELETE FROM session_exercises WHERE id=2`);
+      expect(await status()).toBe('in_progress');
+    });
+    it('an in-progress session can still be completed, and then freezes', async () => {
+      await accepts(complete());
+      expect(await status()).toBe('completed');
+      await rejects(addSet(1, 2), { kind: 'immutable', reason: 'completed_session' });
+    });
+    it('discarded sessions keep their own protection', async () => {
+      await accepts(discard());
+      await rejects(addSet(1, 2), { kind: 'immutable', reason: 'discarded_session' });
+      await rejects(`DELETE FROM session_sets WHERE id=1`, { kind: 'immutable', reason: 'discarded_session' });
     });
   });
 

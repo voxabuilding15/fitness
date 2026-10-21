@@ -213,51 +213,53 @@ describe('permitted status transitions (repository behaviour matches the domain 
   });
 });
 
-describe('correcting a COMPLETED session', () => {
-  it('values can be corrected and the session stays completed with consistent timestamps', async () => {
+describe('a COMPLETED session\'s exercises and sets are immutable', () => {
+  const IMMUTABLE = { kind: 'immutable', reason: 'completed_session' } as const;
+  it('refuses to change a set, and nothing changes', async () => {
     const { s, set } = await completedSession(60);
     const before = unwrap(await S().get(s.id));
-    expect(unwrap(await S().updateSet(set.id, { weightKg: 62.5, reps: 7 }))).toMatchObject({ weightKg: 62.5, reps: 7, isCompleted: true });
-    const after = unwrap(await S().get(s.id));
-    expect(after).toMatchObject({ status: 'completed', startedAt: before.startedAt, endedAt: before.endedAt });
+    expect(errorOf(await S().updateSet(set.id, { weightKg: 62.5, reps: 7 }))).toMatchObject(IMMUTABLE);
+    expect(unwrap(await S().get(s.id))).toEqual(before);
   });
-  it('a forgotten set added later is stamped inside the session window, not "now"', async () => {
-    const { s, seId } = await completedSession(60); // ended T0+60m
-    env.clock.advance(5 * H); // user corrects hours later
-    const added = unwrap(await S().addSet(seId, { reps: 6, weightKg: 50, isCompleted: true }));
-    expect(added.completedAt).toBe(T0 + 60 * MIN); // clamped to the session end
-    expect(added.setNumber).toBe(2);
-    expect(unwrap(await S().get(s.id)).status).toBe('completed');
+  it('refuses a set added later (no made-up timestamp inside the finished session)', async () => {
+    const { s, seId } = await completedSession(60);
+    env.clock.advance(5 * H);
+    expect(errorOf(await S().addSet(seId, { reps: 6, weightKg: 50, isCompleted: true }))).toMatchObject(IMMUTABLE);
+    expect(unwrap(await S().get(s.id)).exercises[0].sets).toHaveLength(1);
   });
-  it('explicit completion times outside [start, end] are rejected', async () => {
-    const { seId, set } = await completedSession(60);
-    expect(errorOf(await S().addSet(seId, { reps: 5, isCompleted: true, completedAt: T0 + 61 * MIN }))).toMatchObject({ kind: 'constraint', constraint: 'check' });
-    expect(errorOf(await S().updateSet(set.id, { completedAt: T0 - 1 }))).toMatchObject({ kind: 'constraint', constraint: 'check' });
-    expect(unwrap(await S().updateSet(set.id, { completedAt: T0 + 30 * MIN })).completedAt).toBe(T0 + 30 * MIN);
+  it('refuses to add or remove an exercise', async () => {
+    const { s, seId } = await completedSession(60);
+    expect(errorOf(await S().addExercise(s.id, squat))).toMatchObject(IMMUTABLE);
+    expect(errorOf(await S().removeExercise(seId))).toMatchObject(IMMUTABLE);
+    expect(unwrap(await S().get(s.id)).exercises).toHaveLength(1);
   });
-  it('can add an exercise and its sets after the fact', async () => {
-    const { s } = await completedSession(60);
-    const ex2 = unwrap(await S().addExercise(s.id, squat));
-    expect(unwrap(await S().addSet(ex2.id, { reps: 5, weightKg: 80, isCompleted: true })).completedAt).toBe(T0 + 60 * MIN);
-  });
-  it('removing or un-completing the LAST completed set is refused and rolled back', async () => {
-    const { s, seId, set } = await completedSession();
-    expect(errorOf(await S().deleteSet(set.id))).toMatchObject({ kind: 'invalid_transition', reason: 'no_completed_sets' });
-    expect(errorOf(await S().updateSet(set.id, { isCompleted: false }))).toMatchObject({ kind: 'invalid_transition', reason: 'no_completed_sets' });
-    expect(errorOf(await S().removeExercise(seId))).toMatchObject({ kind: 'invalid_transition', reason: 'no_completed_sets' });
+  it('refuses to delete or un-complete a set, with the same error for the last one as for any other', async () => {
+    const { s, set } = await completedSession();
+    expect(errorOf(await S().deleteSet(set.id))).toMatchObject(IMMUTABLE);
+    expect(errorOf(await S().updateSet(set.id, { isCompleted: false }))).toMatchObject(IMMUTABLE);
     const d = unwrap(await S().get(s.id));
     expect(d.status).toBe('completed');
     expect(d.exercises[0].sets).toHaveLength(1);
     expect(d.exercises[0].sets[0].isCompleted).toBe(true);
   });
-  it('but a non-last set can be deleted, and numbering stays gap-free', async () => {
-    const { s, seId } = await completedSession();
+  it('set numbering and timestamps are validated while the session is still in progress', async () => {
+    const { seId, set } = await activeWithSet();
     unwrap(await S().addSet(seId, { reps: 5, isCompleted: true }));
     unwrap(await S().addSet(seId, { reps: 4, isCompleted: true }));
-    const first = unwrap(await S().get(s.id)).exercises[0].sets[0];
-    unwrap(await S().deleteSet(first.id));
-    expect(unwrap(await S().get(s.id)).exercises[0].sets.map((x) => [x.setNumber, x.reps])).toEqual([[1, 5], [2, 4]]);
+    unwrap(await S().deleteSet(set.id)); // an in-progress workout can still remove a set; numbering stays gap-free
+    expect(unwrap(await S().get(unwrap(await S().getActive())!.id)).exercises[0].sets.map((x) => [x.setNumber, x.reps])).toEqual([[1, 5], [2, 4]]);
+    expect(errorOf(await S().addSet(seId, { reps: 5, isCompleted: true, completedAt: T0 - 1 }))).toMatchObject({ kind: 'constraint', constraint: 'check' });
+    expect(unwrap(await S().updateSet(unwrap(await S().getActive())!.exercises[0].sets[0].id, { completedAt: T0 + MIN })).completedAt).toBe(T0 + MIN);
   });
+  it('a finished workout still reads back whole, and discarding or completing it again is refused', async () => {
+    const { s } = await completedSession(60);
+    expect(errorOf(await S().complete(s.id))).toMatchObject({ kind: 'invalid_transition' });
+    expect(errorOf(await S().discard(s.id))).toMatchObject({ kind: 'invalid_transition' });
+    expect(unwrap(await S().get(s.id)).exercises[0].sets).toHaveLength(1);
+  });
+});
+
+describe('correcting a COMPLETED session\'s own details', () => {
   it('updateDetails: rename, rpe, and moving the end time (never before the start or a set)', async () => {
     const { s } = await completedSession(60);
     expect(unwrap(await S().updateDetails(s.id, { name: 'Push (fixed)', rpe: 9 }))).toMatchObject({ name: 'Push (fixed)', rpe: 9, status: 'completed' });
@@ -265,12 +267,15 @@ describe('correcting a COMPLETED session', () => {
     env.clock.advance(2 * H); // moving the end later is allowed once that time has actually passed (E9: not into the future)
     expect(unwrap(await S().updateDetails(s.id, { endedAt: T0 + 2 * H })).endedAt).toBe(T0 + 2 * H);
     expect(errorOf(await S().updateDetails(s.id, { endedAt: T0 - 1 }))).toMatchObject({ kind: 'validation', issues: { endedAt: 'validation.outOfRange' } });
-    // the only set is at T0, so ending exactly at the start is still consistent...
+    // the only set is at T0, so ending exactly at the start is still consistent
     expect(unwrap(await S().updateDetails(s.id, { endedAt: T0 })).endedAt).toBe(T0);
-    // ...but once a later set exists, the session can no longer end before it
-    const { seId } = { seId: unwrap(await S().get(s.id)).exercises[0].id };
-    unwrap(await S().updateDetails(s.id, { endedAt: T0 + 2 * H }));
+  });
+  it('updateDetails: the end cannot be moved before the last set', async () => {
+    const { seId } = await activeWithSet();
+    env.clock.advance(2 * H);
     unwrap(await S().addSet(seId, { reps: 5, isCompleted: true, completedAt: T0 + 90 * MIN }));
+    const s = unwrap(await S().complete(unwrap(await S().getActive())!.id));
+    expect(s.endedAt).toBe(T0 + 2 * H);
     expect(errorOf(await S().updateDetails(s.id, { endedAt: T0 + 60 * MIN }))).toMatchObject({ kind: 'constraint', constraint: 'check' });
     expect(unwrap(await S().get(s.id)).endedAt).toBe(T0 + 2 * H); // unchanged
   });
@@ -292,6 +297,21 @@ describe('history queries', () => {
     expect(unwrap(await S().list({ range: { from: '2026-10-22', to: '2026-10-22' } })).map((x) => x.localDate)).toEqual(['2026-10-22']);
     expect(unwrap(await S().list({ limit: 0 }))).toHaveLength(1); // clamped to >= 1
     expect(errorOf(await S().list({ range: { from: '2026-10-30', to: '2026-10-01' } })).kind).toBe('validation');
+  });
+  it('list({ status: "completed" }) never includes discarded or in-progress sessions, while an unfiltered list does', async () => {
+    const done = await completedSession();
+    env.clock.advance(H);
+    const dropped = await activeWithSet();
+    unwrap(await S().discard(dropped.s.id));
+    const running = await activeWithSet();
+    const completed = unwrap(await S().list({ status: 'completed' }));
+    expect(completed.map((x) => x.id)).toEqual([done.s.id]);
+    expect(completed.every((x) => x.status === 'completed')).toBe(true);
+    expect(unwrap(await S().list({ status: 'discarded' })).map((x) => x.id)).toEqual([dropped.s.id]);
+    expect(unwrap(await S().list()).map((x) => x.id).sort()).toEqual([done.s.id, dropped.s.id, running.s.id].sort()); // documented: no status = every status
+    const range = { from: '2000-01-01', to: '2100-01-01' };
+    expect(unwrap(await S().countCompleted(range))).toBe(1);
+    expect(unwrap(await S().completedDates(range))).toHaveLength(1);
   });
   it('empty history gives empty results, not placeholders', async () => {
     const range = { from: '2026-01-01', to: '2026-12-31' };

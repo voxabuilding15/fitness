@@ -254,7 +254,7 @@ describe('migration 007 on a database that already holds data', () => {
     expect((await runMigrations(db, { migrations: MIGRATIONS.slice(0, 6) as never })).ok).toBe(true);
     await db.run("INSERT INTO profile(id,display_name,location,sex,age_years,age_set_on,height_cm,activity_level,updated_at) VALUES (1,'Sara','Rabat','female',30,'2026-01-02',171.5,'light',?)", [T0]);
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir) });
-    expect(r.ok && r.value).toMatchObject({ fromVersion: 6, toVersion: LATEST_VERSION, applied: [7, 8] });
+    expect(r.ok && r.value).toMatchObject({ fromVersion: 6, toVersion: LATEST_VERSION, applied: [7, 8, 9] });
     expect(await db.first('SELECT * FROM profile')).toEqual({
       id: 1, display_name: 'Sara', location: 'Rabat', sex: 'female', age_years: 30, age_set_on: '2026-01-02', height_cm: 171.5, activity_level: 'light', undated_weight_kg: null, updated_at: T0,
     });

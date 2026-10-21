@@ -53,7 +53,7 @@ describe('migrations from an empty database', () => {
   });
   it('the shipped migration list is valid and ordered', () => {
     expect(validateMigrationList(MIGRATIONS)).toBeNull();
-    expect(MIGRATIONS.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(MIGRATIONS.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(validateMigrationList([{ version: 2, name: 'x', sql: '' }])).toMatch(/without gaps/);
     expect(validateMigrationList([MIGRATIONS[0], MIGRATIONS[2]])).toMatch(/without gaps/);
   });
@@ -120,7 +120,7 @@ describe('backups before upgrading a populated database', () => {
     const db = await populatedV3();
     const clock = new ManualClock(1_800_000_000_000);
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir), clock });
-    expect(r.ok && r.value).toMatchObject({ fromVersion: 3, toVersion: LATEST_VERSION, applied: [4, 5, 6, 7, 8], backup: backupName({ fromVersion: 3, toVersion: LATEST_VERSION, timestamp: clock.now() }) });
+    expect(r.ok && r.value).toMatchObject({ fromVersion: 3, toVersion: LATEST_VERSION, applied: [4, 5, 6, 7, 8, 9], backup: backupName({ fromVersion: 3, toVersion: LATEST_VERSION, timestamp: clock.now() }) });
     expect(await version(db)).toBe(LATEST_VERSION);
     // the backup is a real, separate database frozen at v3 with the user's data
     const copy = new NodeSqliteDriver(join(dir, (r as any).value.backup));

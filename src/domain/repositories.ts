@@ -52,6 +52,11 @@ export interface TemplateRepository {
   duplicate(id: number, newName: string): Promise<Result<WorkoutTemplate>>;
 }
 
+/**
+ * Filter for `SessionRepository.list`. With no `status` it returns sessions of EVERY status, including `discarded` ones
+ * (kept as history but never counted) and the one `in_progress`. Anything that counts workouts, builds history or feeds
+ * statistics must pass `status: 'completed'` - or use `countCompleted` / `completedDates`, which only ever see completed sessions.
+ */
 export interface SessionListFilter {
   status?: SessionStatus;
   range?: DateRange;
@@ -63,7 +68,9 @@ export interface SessionRepository {
   start(input?: SessionStartInput): Promise<Result<WorkoutSessionDetail>>;
   getActive(): Promise<Result<WorkoutSessionDetail | null>>;
   get(id: number): Promise<Result<WorkoutSessionDetail>>;
+  /** All statuses unless `filter.status` is given - see `SessionListFilter`. */
   list(filter?: SessionListFilter): Promise<Result<WorkoutSession[]>>;
+  /** The exercise, set and set-removal methods below only work while the session is in progress: a completed or discarded session rejects them with `immutable`. */
   addExercise(sessionId: number, exerciseId: number): Promise<Result<SessionExercise>>;
   removeExercise(sessionExerciseId: number): Promise<Result<void>>;
   addSet(sessionExerciseId: number, input: SetInput): Promise<Result<SessionSet>>;
@@ -73,7 +80,7 @@ export interface SessionRepository {
   complete(sessionId: number, input?: CompleteSessionInput): Promise<Result<WorkoutSession>>;
   /** in_progress -> discarded. The data is kept but never counted. */
   discard(sessionId: number): Promise<Result<WorkoutSession>>;
-  /** Corrections to a session's own fields (completed or in progress; never discarded). */
+  /** Corrections to a session's own fields - name, rpe and end time (completed or in progress; never discarded). Its exercises and sets are not part of this. */
   updateDetails(sessionId: number, patch: SessionPatch): Promise<Result<WorkoutSession>>;
   /** Distinct local dates with at least one COMPLETED session (discarded / in-progress are excluded). */
   completedDates(range: DateRange): Promise<Result<string[]>>;
