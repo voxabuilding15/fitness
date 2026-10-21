@@ -22,6 +22,7 @@ const NULLABLE: Record<string, string[]> = {
   workout_templates: ['notes'],
   template_exercises: ['target_reps_min', 'target_reps_max', 'target_duration_sec'],
   workout_sessions: ['template_id', 'ended_at', 'discarded_at', 'rpe', 'est_kcal', 'est_method'],
+  session_exercises: ['exercise_name', 'plan_sets', 'plan_reps_min', 'plan_reps_max', 'plan_duration_sec', 'plan_rest_sec'],
   session_sets: ['weight_kg', 'reps', 'duration_sec', 'distance_m', 'rpe', 'completed_at'],
   foods: ['slug', 'custom_name', 'brand', 'fiber_per_100'],
   meal_entries: ['food_id', 'quick_label'],

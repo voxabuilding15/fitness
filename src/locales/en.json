@@ -303,11 +303,10 @@
     "statusCompleted": "Completed",
     "statusDiscarded": "Discarded",
     "startedOn": "Started {{date}}",
-    "fromTemplate": "From your workout: {{name}}",
     "exercises": "Exercises",
     "exerciseRow": "{{position}}. {{name}}",
     "planned": "Planned: {{summary}}",
-    "noPlan": "No planned targets are available.",
+    "noPlan": "No planned targets were recorded for this workout.",
     "next": "Logging sets is coming soon. Your workout is saved and will stay in progress.",
     "loaded": "Workout loaded."
   },

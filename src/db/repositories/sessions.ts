@@ -13,7 +13,27 @@ interface SessionRow {
   id: number; template_id: number | null; name: string; status: SessionStatus; started_at: number; ended_at: number | null;
   discarded_at: number | null; local_date: string; rpe: number | null; est_kcal: number | null; est_method: 'met' | null;
 }
-interface SessionExerciseRow { id: number; session_id: number; exercise_id: number; position: number }
+interface SessionExerciseRow {
+  id: number; session_id: number; exercise_id: number; position: number; exercise_name: string | null; plan_sets: number | null;
+  plan_reps_min: number | null; plan_reps_max: number | null; plan_duration_sec: number | null; plan_rest_sec: number | null; plan_captured: number;
+}
+interface TemplateRowForStart {
+  exercise_id: number; target_sets: number; target_reps_min: number | null; target_reps_max: number | null; target_duration_sec: number | null;
+  rest_sec: number; source: 'seed' | 'user'; custom_name: string | null;
+}
+
+const toSessionExercise = (e: SessionExerciseRow, sets: SessionSet[]): SessionExercise => ({
+  id: e.id, exerciseId: e.exercise_id, position: e.position, exerciseName: e.exercise_name,
+  plan: e.plan_captured === 1
+    ? { sets: e.plan_sets!, repsMin: e.plan_reps_min, repsMax: e.plan_reps_max, durationSec: e.plan_duration_sec, restSec: e.plan_rest_sec! }
+    : null,
+  sets,
+});
+
+/** The name to keep for an exercise a session uses: a custom exercise's own name (built-in ones have none; they are named by translation). */
+const nameToKeep = async (db: SqlExecutor, exerciseId: number): Promise<string | null> =>
+  (await db.first<{ custom_name: string | null }>('SELECT custom_name FROM exercises WHERE id=?', [exerciseId]))?.custom_name ?? null;
+
 interface SetRow {
   id: number; session_exercise_id: number; set_number: number; weight_kg: number | null; reps: number | null; duration_sec: number | null;
   distance_m: number | null; rpe: number | null; is_warmup: number; is_completed: number; completed_at: number | null;
@@ -46,7 +66,7 @@ async function loadDetail(db: SqlExecutor, id: number): Promise<WorkoutSessionDe
     `SELECT ss.* FROM session_sets ss JOIN session_exercises se ON se.id=ss.session_exercise_id WHERE se.session_id=? ORDER BY se.position, ss.set_number`, [id]);
   return {
     ...session,
-    exercises: ses.map((e) => ({ id: e.id, exerciseId: e.exercise_id, position: e.position, sets: sets.filter((s) => s.session_exercise_id === e.id).map(toSet) })),
+    exercises: ses.map((e) => toSessionExercise(e, sets.filter((s) => s.session_exercise_id === e.id).map(toSet))),
   };
 }
 
@@ -81,12 +101,17 @@ export function createSessionRepository(ctx: RepoContext): SessionRepository {
       return guard(() => ctx.db.transaction(async (tx) => {
         let name = v.name;
         let exerciseIds = v.exerciseIds ?? [];
+        let fromTemplate: TemplateRowForStart[] | null = null;
         if (v.templateId !== undefined) {
           const t = await tx.first<{ name: string }>('SELECT name FROM workout_templates WHERE id=?', [v.templateId]);
           if (!t) return notFound('template');
           name ??= t.name;
           if (!v.exerciseIds) {
-            exerciseIds = (await tx.all<{ exercise_id: number }>('SELECT exercise_id FROM template_exercises WHERE template_id=? ORDER BY position', [v.templateId])).map((r) => r.exercise_id);
+            // the template's targets are copied now, inside this transaction: later edits or deletion of the template must not reach the session
+            fromTemplate = await tx.all<TemplateRowForStart>(
+              `SELECT te.exercise_id, te.target_sets, te.target_reps_min, te.target_reps_max, te.target_duration_sec, te.rest_sec, e.source, e.custom_name
+               FROM template_exercises te JOIN exercises e ON e.id=te.exercise_id WHERE te.template_id=? ORDER BY te.position`, [v.templateId]);
+            exerciseIds = fromTemplate.map((r) => r.exercise_id);
           }
         }
         if (!name) return fail({ kind: 'validation', issues: { name: 'validation.required' } });
@@ -95,7 +120,18 @@ export function createSessionRepository(ctx: RepoContext): SessionRepository {
           "INSERT INTO workout_sessions(template_id,name,status,started_at,local_date) VALUES (?,?,'in_progress',?,?)",
           [v.templateId ?? null, name, now, ctx.localDate(now)]); // a second active session is rejected by the unique index -> conflict
         let position = 1;
-        for (const exerciseId of exerciseIds) await tx.run('INSERT INTO session_exercises(session_id,exercise_id,position) VALUES (?,?,?)', [r.lastInsertRowId, exerciseId, position++]);
+        if (fromTemplate) {
+          for (const row of fromTemplate) {
+            await tx.run(
+              `INSERT INTO session_exercises(session_id,exercise_id,position,exercise_name,plan_sets,plan_reps_min,plan_reps_max,plan_duration_sec,plan_rest_sec,plan_captured)
+               VALUES (?,?,?,?,?,?,?,?,?,1)`,
+              [r.lastInsertRowId, row.exercise_id, position++, row.source === 'user' ? row.custom_name : null, row.target_sets, row.target_reps_min, row.target_reps_max, row.target_duration_sec, row.rest_sec]);
+          }
+        } else {
+          for (const exerciseId of exerciseIds) {
+            await tx.run('INSERT INTO session_exercises(session_id,exercise_id,position,exercise_name) VALUES (?,?,?,?)', [r.lastInsertRowId, exerciseId, position++, await nameToKeep(tx, exerciseId)]);
+          }
+        }
         return loadDetail(tx, r.lastInsertRowId);
       }));
     },
@@ -125,8 +161,9 @@ export function createSessionRepository(ctx: RepoContext): SessionRepository {
     addExercise: (sessionId, exerciseId) => guard(() => ctx.db.transaction(async (tx) => {
       await loadSession(tx, sessionId);
       const next = (await tx.first<{ p: number }>('SELECT COALESCE(MAX(position),0)+1 p FROM session_exercises WHERE session_id=?', [sessionId]))!.p;
-      const r = await tx.run('INSERT INTO session_exercises(session_id,exercise_id,position) VALUES (?,?,?)', [sessionId, exerciseId, next]);
-      const out: SessionExercise = { id: r.lastInsertRowId, exerciseId, position: next, sets: [] };
+      const keep = await nameToKeep(tx, exerciseId);
+      const r = await tx.run('INSERT INTO session_exercises(session_id,exercise_id,position,exercise_name) VALUES (?,?,?,?)', [sessionId, exerciseId, next, keep]);
+      const out: SessionExercise = { id: r.lastInsertRowId, exerciseId, position: next, exerciseName: keep, plan: null, sets: [] };
       return out;
     })),
 

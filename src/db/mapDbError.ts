@@ -4,6 +4,7 @@ import { DbError, type AppError } from '../domain/errors';
 const TRIGGER_ERRORS: Record<string, AppError> = {
   FITNESS_SEED_IMMUTABLE: { kind: 'immutable', reason: 'seed_row' },
   FITNESS_SESSION_FROZEN: { kind: 'immutable', reason: 'discarded_session' },
+  FITNESS_SESSION_PLAN_IMMUTABLE: { kind: 'immutable', reason: 'session_plan' },
   FITNESS_SESSION_START_IMMUTABLE: { kind: 'immutable', reason: 'session_start_time' },
   FITNESS_SESSION_TRANSITION: { kind: 'invalid_transition', from: '', to: '', reason: 'not_permitted' },
   FITNESS_SESSION_INSERT_STATUS: { kind: 'invalid_transition', from: '', to: '', reason: 'must_start_in_progress' },

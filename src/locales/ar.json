@@ -303,11 +303,10 @@
     "statusCompleted": "مكتملة",
     "statusDiscarded": "ملغاة",
     "startedOn": "بدأت في {{date}}",
-    "fromTemplate": "من حصتك: {{name}}",
     "exercises": "التمارين",
     "exerciseRow": "{{position}}. {{name}}",
     "planned": "المخطط: {{summary}}",
-    "noPlan": "لا توجد أهداف مخططة متاحة.",
+    "noPlan": "لم تُسجَّل أهداف مخططة لهذه الحصة.",
     "next": "تسجيل المجموعات قادم قريباً. حصتك محفوظة وستبقى جارية.",
     "loaded": "تم تحميل الحصة."
   },

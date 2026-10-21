@@ -248,10 +248,51 @@ describe('SessionScreen', () => {
     expect(rowNames()).toEqual([`1. ${ar.exercises.benchPress}`, `2. ${ar.exercises.overheadPress}`, `3. ${ar.exercises.plank}`]);
   });
 
-  it('still opens after its workout was deleted, without inventing targets', async () => {
+  it('keeps showing the targets the session started with after the workout is renamed, edited or deleted', async () => {
     const t = await makeTemplate();
     const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
+    unwrap(await env.repos.templates.update(t.id, { name: 'Renamed', exercises: [{ exerciseId: t.exercises[2].exerciseId, targetSets: 9, targetDurationSec: 10, restSec: 5 }] }));
+    mockParams = { id: String(s.id) };
+    await mount(SessionScreen);
+    const expected = ['1. Barbell bench press', '2. Barbell overhead press', '3. Plank'];
+    expect(rowNames()).toEqual(expected);
+    expect(has('Push day')).toBe(true);
+    expect(has('Planned: 3 × 8–12 · rest 60 s')).toBe(true);
+    expect(has('Planned: 2 × 45 s · rest 30 s')).toBe(true);
+    expect(has('Planned: 9')).toBe(false);
+    act(() => tree.unmount());
     unwrap(await env.repos.templates.delete(t.id));
+    await mount(SessionScreen);
+    expect(rowNames()).toEqual(expected);
+    expect(has('Planned: 3 × 8–12 · rest 60 s')).toBe(true);
+  });
+
+  it('never reads the workout template at all', async () => {
+    const t = await makeTemplate();
+    const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
+    const get = jest.fn(env.repos.templates.get);
+    mockParams = { id: String(s.id) };
+    await mount(SessionScreen, { status: 'ready', repos: { ...env.repos, templates: { ...env.repos.templates, get } } });
+    expect(get).not.toHaveBeenCalled();
+    expect(has('Planned:')).toBe(true);
+  });
+
+  it('shows stored targets in Arabic', async () => {
+    const t = await makeTemplate();
+    const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
+    mockLocale = 'ar';
+    mockParams = { id: String(s.id) };
+    await mount(SessionScreen);
+    expect(has('المخطط: 3 × 8–12 · راحة 60 ث')).toBe(true);
+    expect(has('المخطط: 2 × 45 ث · راحة 30 ث')).toBe(true);
+  });
+
+  it('a session from before targets were recorded says so instead of showing the template\'s current ones', async () => {
+    const t = await makeTemplate();
+    const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
+    // make it look like a pre-snapshot session: the triggers protect recorded plans, so rebuild the rows the way an upgraded database has them
+    await env.db.exec('DROP TRIGGER session_exercises_plan_immutable');
+    await env.db.run('UPDATE session_exercises SET plan_captured=0, plan_sets=NULL, plan_rest_sec=NULL, plan_reps_min=NULL, plan_reps_max=NULL, plan_duration_sec=NULL WHERE session_id=?', [s.id]);
     mockParams = { id: String(s.id) };
     await mount(SessionScreen);
     expect(rowNames()).toHaveLength(3);
@@ -259,14 +300,14 @@ describe('SessionScreen', () => {
     expect(has(ls.noPlan)).toBe(true);
   });
 
-  it('does not show targets that no longer belong to the same exercise at that position', async () => {
-    const t = await makeTemplate();
+  it('shows a custom exercise under the name it had when the session used it', async () => {
+    const mine = unwrap(await env.repos.exercises.create({ name: 'Cable woodchop', category: 'strength', primaryMuscle: 'core', equipment: 'cable', trackingType: 'reps_only' }));
+    const t = unwrap(await env.repos.templates.create({ name: 'Core', exercises: [{ exerciseId: mine.id, targetSets: 3, targetRepsMin: 10, restSec: 45 }] }));
     const s = unwrap(await env.repos.sessions.start({ templateId: t.id }));
-    unwrap(await env.repos.templates.update(t.id, { name: 'Push day', exercises: [{ exerciseId: t.exercises[2].exerciseId, targetSets: 9, targetDurationSec: 10, restSec: 5 }] }));
+    unwrap(await env.repos.exercises.update(mine.id, { name: 'Renamed later' }));
     mockParams = { id: String(s.id) };
     await mount(SessionScreen);
-    expect(rowNames()).toHaveLength(3);
-    expect(has('Planned: 9')).toBe(false);
+    expect(rowNames()).toEqual(['1. Cable woodchop']);
   });
 
   it('reports an unknown or malformed session id', async () => {

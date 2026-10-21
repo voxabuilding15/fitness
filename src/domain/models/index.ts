@@ -86,10 +86,22 @@ export interface SessionSet {
   isCompleted: boolean;
   completedAt: number | null;
 }
+/** The targets a session was started with. Recorded once, when the session is started from a template. */
+export interface SessionExercisePlan {
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSec: number | null;
+  restSec: number;
+}
 export interface SessionExercise {
   id: number;
   exerciseId: number;
   position: number;
+  /** A custom exercise's name as it was when the session used it; null for built-in exercises (named by translation) and for sessions from before this was recorded. */
+  exerciseName: string | null;
+  /** null = no targets were recorded for this row (an older session, or an exercise added by hand). Never filled in from the template afterwards. */
+  plan: SessionExercisePlan | null;
   sets: SessionSet[];
 }
 export interface WorkoutSession {

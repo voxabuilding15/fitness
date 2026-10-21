@@ -8,8 +8,8 @@ import { GlassCard } from '../components/GlassCard';
 import { Screen } from '../components/Screen';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
-import type { Exercise, WorkoutSessionDetail, WorkoutTemplate } from '../domain/models';
-import { targetSummary } from '../domain/templateSummary';
+import type { Exercise, WorkoutSessionDetail } from '../domain/models';
+import { summarizeTargets } from '../domain/templateSummary';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
 import { announce } from '../services/accessibility';
 import { colors, radius } from '../theme';
@@ -18,12 +18,13 @@ type Load =
   | { status: 'loading' }
   | { status: 'missing' }
   | { status: 'failed'; error: AppError }
-  | { status: 'ready'; session: WorkoutSessionDetail; exercises: Exercise[]; template: WorkoutTemplate | null };
+  | { status: 'ready'; session: WorkoutSessionDetail; exercises: Exercise[] };
 
 /**
  * A persisted workout session, read back from the database: its name, status and exercises in the order they were
- * started with. Prescribed targets come from the template it was started from, if that template still exists
- * (sessions don't copy targets); otherwise they are simply not shown. Logging sets is a later milestone.
+ * started with, each with the targets recorded when the session started. The template is never read here, so renaming,
+ * editing or deleting it cannot change what an old session shows. A row with no recorded targets (a session from before
+ * they were recorded, or an exercise added by hand) shows none. Logging sets is a later milestone.
  */
 export default function SessionScreen() {
   const { t } = useTranslation();
@@ -47,13 +48,7 @@ export default function SessionScreen() {
         const ex = await repos.exercises.list({ includeArchived: true });
         if (cancelled) return;
         if (!ex.ok) return setLoad({ status: 'failed', error: ex.error });
-        let template: WorkoutTemplate | null = null;
-        if (s.value.templateId !== null) {
-          const tpl = await repos.templates.get(s.value.templateId);
-          if (cancelled) return;
-          template = tpl.ok ? tpl.value : null; // deleted or unreadable: the targets are left out, the session still opens
-        }
-        setLoad({ status: 'ready', session: s.value, exercises: ex.value, template });
+        setLoad({ status: 'ready', session: s.value, exercises: ex.value });
       })();
       return () => {
         cancelled = true;
@@ -93,9 +88,9 @@ export default function SessionScreen() {
     );
   }
 
-  const { session, exercises, template } = load;
+  const { session, exercises } = load;
   const byId = new Map(exercises.map((e) => [e.id, e]));
-  const plan = template ? new Map(template.exercises.map((e) => [e.exerciseId, e])) : null;
+  const anyPlan = session.exercises.some((e) => e.plan);
   const statusKey = session.status === 'in_progress' ? 'statusInProgress' : session.status === 'completed' ? 'statusCompleted' : 'statusDiscarded';
   return (
     <Screen withNav={false}>
@@ -103,14 +98,11 @@ export default function SessionScreen() {
       <GlassCard strong style={styles.card}>
         <AppText size={20} weight="semibold" color={colors.ink} accessibilityRole="header">{session.name}</AppText>
         <AppText size={12} color={colors.muted}>{`${t(`liveSession.${statusKey}`)} · ${t('liveSession.startedOn', { date: session.localDate })}`}</AppText>
-        {template ? <AppText size={12} color={colors.muted}>{t('liveSession.fromTemplate', { name: template.name })}</AppText> : null}
         <AppText size={14} weight="medium" color={colors.ink} accessibilityRole="header">{t('liveSession.exercises')}</AppText>
         {session.exercises.map((se, i) => {
           const ex = byId.get(se.exerciseId);
-          // pair the i-th session row with the template row of the same exercise at the same position when it still matches
-          const planned = plan && template && template.exercises[i]?.exerciseId === se.exerciseId ? template.exercises[i] : null;
-          const name = ex ? nameOf(ex) : '';
-          const summary = planned ? targetSummary(t, planned) : null;
+          const name = se.exerciseName ?? (ex ? nameOf(ex) : '');
+          const summary = se.plan ? summarizeTargets(t, se.plan) : null;
           return (
             <View key={se.id} style={styles.item} accessible accessibilityLabel={`${se.position}. ${name}${summary ? `, ${t('liveSession.planned', { summary })}` : ''}`}>
               <AppText size={15} weight="medium" color={colors.ink}>{t('liveSession.exerciseRow', { position: se.position, name })}</AppText>
@@ -118,7 +110,7 @@ export default function SessionScreen() {
             </View>
           );
         })}
-        {!plan ? <AppText size={11} color={colors.muted}>{t('liveSession.noPlan')}</AppText> : null}
+        {!anyPlan ? <AppText size={11} color={colors.muted}>{t('liveSession.noPlan')}</AppText> : null}
       </GlassCard>
       <AppText size={12} color={colors.onGradientMuted}>{t('liveSession.next')}</AppText>
     </Screen>
