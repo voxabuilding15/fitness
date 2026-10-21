@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { BackupStrategy } from '../../db/backup';
 import { Database } from '../../db/database';
 import { createDatabaseInitializer, type InitDeps } from '../../db/initDatabase';
-import { MIGRATIONS } from '../../db/migrations';
+import { MIGRATIONS, LATEST_VERSION } from '../../db/migrations';
 import { runMigrations } from '../../db/migrations/runner';
 import { NodeFileBackupStrategy } from '../../db/testing/nodeFileBackup';
 import { NodeSqliteDriver } from '../../db/testing/nodeSqliteDriver';
@@ -42,7 +42,7 @@ describe('successful initialization', () => {
     const r = await createDatabaseInitializer(deps).get();
     expect(r.status).toBe('ready');
     if (r.status !== 'ready') return;
-    expect(r.report).toMatchObject({ fromVersion: 0, toVersion: 6 });
+    expect(r.report).toMatchObject({ fromVersion: 0, toVersion: LATEST_VERSION });
     expect((await r.db.first<{ foreign_keys: number }>('PRAGMA foreign_keys'))!.foreign_keys).toBe(1);
     expect((await r.repos.profile.get())).toEqual({ ok: true, value: null });
   });
@@ -75,7 +75,7 @@ describe('successful initialization', () => {
     await first.repos.weight.save({ weightKg: 70 });
     await first.db.close();
     const second = await createDatabaseInitializer(fileDeps(path).deps).get();
-    expect(second.status === 'ready' && second.report).toMatchObject({ fromVersion: 6, toVersion: 6, applied: [], backup: null });
+    expect(second.status === 'ready' && second.report).toMatchObject({ fromVersion: LATEST_VERSION, toVersion: LATEST_VERSION, applied: [], backup: null });
     expect(second.status === 'ready' && (await second.repos.weight.latest())).toMatchObject({ ok: true, value: { weightKg: 70 } });
   });
 });
@@ -119,7 +119,7 @@ describe('failures never reject, never delete, and can be retried', () => {
     await d.exec("CREATE TABLE precious(x TEXT); INSERT INTO precious VALUES ('keep'); PRAGMA user_version = 99;");
     await d.close();
     const { deps, stats } = fileDeps(path);
-    expect(await createDatabaseInitializer(deps).get()).toEqual({ status: 'unavailable', error: { kind: 'db_too_new', found: 99, supported: 6 } });
+    expect(await createDatabaseInitializer(deps).get()).toEqual({ status: 'unavailable', error: { kind: 'db_too_new', found: 99, supported: LATEST_VERSION } });
     expect(stats.closes).toBe(1);
     const check = new NodeSqliteDriver(path);
     expect(await check.all('SELECT x FROM precious')).toEqual([{ x: 'keep' }]);

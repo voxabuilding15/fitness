@@ -15,6 +15,11 @@ export const profileInput = obj({
   ageYears: int(10, 100).optional(),
   heightCm: num(100, 250).optional(),
   activityLevel: activityLevelSchema.optional(),
+  /**
+   * Set when the person has just entered or re-confirmed the age. Without it, saving an age equal to the stored one keeps
+   * the stored entry date (so editing only the name never makes an old age look current).
+   */
+  ageConfirmed: z.boolean().optional(),
 });
 
 export const goalsInput = obj({

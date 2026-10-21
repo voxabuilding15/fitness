@@ -1,3 +1,4 @@
+import { LATEST_VERSION } from '../../db/migrations';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -52,7 +53,7 @@ describe('persistence across closing and reopening the database file', () => {
     expect(snapshot.session).toMatchObject({ status: 'completed', rpe: 7 });
     expect(await db.all('PRAGMA integrity_check')).toEqual([{ integrity_check: 'ok' }]);
     expect(await db.all('PRAGMA foreign_key_check')).toEqual([]);
-    expect((await db.first<{ user_version: number }>('PRAGMA user_version'))!.user_version).toBe(6);
+    expect((await db.first<{ user_version: number }>('PRAGMA user_version'))!.user_version).toBe(LATEST_VERSION);
     await db.close();
   });
   it('a workout still in progress when the app is closed is recovered on the next launch, and can be finished', async () => {

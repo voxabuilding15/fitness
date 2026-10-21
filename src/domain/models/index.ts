@@ -9,10 +9,18 @@ export interface Profile {
   location: string | null;
   sex: Sex | null;
   ageYears: number | null;
-  /** The local date on which `ageYears` was entered (so the age can be refreshed later, never invented). */
+  /**
+   * The local date on which `ageYears` was entered. `null` while an age exists means the date is UNKNOWN (the age came
+   * from the old profile, which never recorded when it was typed); it must be treated as possibly out of date, never as today.
+   */
   ageSetOn: string | null;
   heightCm: number | null;
   activityLevel: ActivityLevel | null;
+  /**
+   * A weight carried over from the old profile whose date is UNKNOWN. It is not a weight entry (those always have a real
+   * day), is never part of history or statistics, and is only offered to the person as "your earlier weight, date unknown".
+   */
+  undatedWeightKg: number | null;
   updatedAt: number;
 }
 

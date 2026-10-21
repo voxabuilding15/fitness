@@ -1,3 +1,4 @@
+import { LATEST_VERSION } from '../../db/migrations';
 import { copyFileSync, mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,7 +55,7 @@ async function sourceDb() {
   const raw = { __driver: driver, __name: 'source.db' } as unknown as SQLiteDatabase;
   return { raw, db: await Database.open(new NodeSqliteDriver(':memory:')) };
 }
-const ctx = { fromVersion: 3, toVersion: 6, timestamp: 1_800_000_000_000 };
+const ctx = { fromVersion: 3, toVersion: LATEST_VERSION, timestamp: 1_800_000_000_000 };
 
 describe('ExpoBackupStrategy (logic against a fake expo-sqlite API)', () => {
   it('creates a fresh backup, validates it, and closes every connection it opened', async () => {

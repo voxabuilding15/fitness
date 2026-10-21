@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Database } from '../../db/database';
 import { importLegacyProfile } from '../../db/legacyImport';
-import { MIGRATIONS, type Migration } from '../../db/migrations';
+import { MIGRATIONS, type Migration, LATEST_VERSION } from '../../db/migrations';
 import { createRepositories } from '../../db/repositories';
 import { runMigrations } from '../../db/migrations/runner';
 import { NodeFileBackupStrategy } from '../../db/testing/nodeFileBackup';
@@ -61,8 +61,8 @@ describe('upgrade matrix: every older schema version upgrades to the latest with
     expect(Object.values(before).every((n) => n >= 1)).toBe(true);
 
     const r = await runMigrations(old, { backup: new NodeFileBackupStrategy(dir), clock: new ManualClock(T0) });
-    expect(r.ok && r.value).toMatchObject({ fromVersion: from, toVersion: 6, applied: MIGRATIONS.slice(from).map((m) => m.version), warnings: [] });
-    expect(await version(old)).toBe(6);
+    expect(r.ok && r.value).toMatchObject({ fromVersion: from, toVersion: LATEST_VERSION, applied: MIGRATIONS.slice(from).map((m) => m.version), warnings: [] });
+    expect(await version(old)).toBe(LATEST_VERSION);
 
     for (const t of TABLES_BY_VERSION[from]) expect(Number((await old.first<{ c: number }>(`SELECT count(*) c FROM ${t}`))!.c)).toBe(before[t]); // nothing lost
     expect(await old.first('SELECT display_name FROM profile')).toEqual({ display_name: 'Sara' });

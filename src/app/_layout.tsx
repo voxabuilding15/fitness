@@ -13,6 +13,7 @@ import {
 import '../i18n';
 import { AppProvider, useApp } from '../context/AppContext';
 import { DatabaseProvider } from '../context/DatabaseContext';
+import { ProfileProvider } from '../context/ProfileContext';
 import { colors } from '../theme';
 
 // Layout direction is driven by the root view below, so don't let the OS locale flip it implicitly.
@@ -46,7 +47,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AppProvider>
         <DatabaseProvider>
-          <Shell />
+          <ProfileProvider>
+            <Shell />
+          </ProfileProvider>
         </DatabaseProvider>
       </AppProvider>
     </SafeAreaProvider>

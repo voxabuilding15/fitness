@@ -1,7 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Clock } from '../domain/clock';
 import { ExpoBackupStrategy, type ExpoSqliteApi } from './expoBackup';
 import { ExpoSqliteDriver } from './expoSqliteDriver';
 import { loadExpoSqlite, type ExpoSqliteModule } from './expoSqliteModule';
-import { createDatabaseInitializer } from './initDatabase';
+import { createDatabaseInitializer, type DbInitResult } from './initDatabase';
+import type { ReadOnlyKeyValueStore } from './legacyImport';
+import { createLegacyStartup } from './legacyStartup';
 
 export const DATABASE_FILE = 'fitness.db';
 
@@ -19,8 +23,29 @@ export function createAppDatabaseInitializer(load: () => ExpoSqliteModule = load
   });
 }
 
-/** The app's single database initializer (iOS / Android). See appDatabase.web.ts for the web build. */
-const initializer = createAppDatabaseInitializer();
+/**
+ * The app's database: the initializer plus the one-time import of the old AsyncStorage profile. `ready` is only reported
+ * after the import has finished (or been ruled out), so every screen sees the imported profile. A failed or unreadable
+ * import never makes the database unavailable; its result is available from `legacyResult()`.
+ * `store` is read-only by type: nothing here can write to or delete AsyncStorage data.
+ */
+export function createAppDatabase(opts: { load?: () => ExpoSqliteModule; store?: ReadOnlyKeyValueStore; clock?: Clock } = {}) {
+  const initializer = createAppDatabaseInitializer(opts.load);
+  const legacy = createLegacyStartup(opts.store ?? { getItem: (key) => AsyncStorage.getItem(key) }, { clock: opts.clock });
+  const afterInit = async (r: DbInitResult): Promise<DbInitResult> => {
+    if (r.status === 'ready') await legacy.run(r.db);
+    return r;
+  };
+  return {
+    get: () => initializer.get().then(afterInit),
+    retry: () => initializer.retry().then(afterInit),
+    legacyResult: legacy.last,
+  };
+}
 
-export const getAppDatabase = () => initializer.get();
-export const retryAppDatabase = () => initializer.retry();
+const appDatabase = createAppDatabase();
+
+export const getAppDatabase = () => appDatabase.get();
+export const retryAppDatabase = () => appDatabase.retry();
+/** The result of the legacy profile import in this run (null before it ran). */
+export const getLegacyImportResult = appDatabase.legacyResult;

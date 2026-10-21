@@ -16,7 +16,7 @@ const UNIQUE = { kind: 'constraint', constraint: 'unique' } as const;
 const FK = { kind: 'constraint', constraint: 'foreign_key' } as const;
 
 const NULLABLE: Record<string, string[]> = {
-  profile: ['location', 'sex', 'age_years', 'age_set_on', 'height_cm', 'activity_level'],
+  profile: ['location', 'sex', 'age_years', 'age_set_on', 'height_cm', 'activity_level', 'undated_weight_kg'],
   goals: ['target_weight_kg', 'kcal_target', 'protein_g', 'carbs_g', 'fat_g'],
   exercises: ['slug', 'custom_name', 'met_value'],
   workout_templates: ['notes'],
@@ -80,8 +80,13 @@ describe('profile & goals', () => {
     await accepts(`INSERT INTO profile(id,display_name,updated_at) VALUES (1,'Sara',${T})`);
     await rejects(`INSERT INTO profile(id,display_name,updated_at) VALUES (2,'X',${T})`, CHECK);
     await rejects(`UPDATE profile SET display_name='   ' WHERE id=1`, CHECK);
-    await rejects(`UPDATE profile SET age_years=30 WHERE id=1`, CHECK); // age needs age_set_on
+    await accepts(`UPDATE profile SET age_years=30 WHERE id=1`); // an age of UNKNOWN date is allowed (migration 007) ...
+    await rejects(`UPDATE profile SET age_years=NULL, age_set_on='2026-10-21' WHERE id=1`, CHECK); // ... but a date without an age is not
     await accepts(`UPDATE profile SET age_years=30, age_set_on='2026-10-21' WHERE id=1`);
+    await rejects(`UPDATE profile SET age_set_on='2026-02-30' WHERE id=1`, CHECK); // a date, when present, is a real calendar date
+    await rejects(`UPDATE profile SET undated_weight_kg=19 WHERE id=1`, CHECK);
+    await rejects(`UPDATE profile SET undated_weight_kg=501 WHERE id=1`, CHECK);
+    await accepts(`UPDATE profile SET undated_weight_kg=70.5 WHERE id=1`);
     await rejects(`UPDATE profile SET age_years=9, age_set_on='2026-10-21' WHERE id=1`, CHECK);
     await rejects(`UPDATE profile SET height_cm=99 WHERE id=1`, CHECK);
     await rejects(`UPDATE profile SET sex='other' WHERE id=1`, CHECK);

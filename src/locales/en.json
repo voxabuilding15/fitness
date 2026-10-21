@@ -23,6 +23,7 @@
   "tabs": { "home": "Home", "workouts": "Workouts", "statistics": "Statistics", "profile": "Profile" },
   "home": {
     "welcomeLine1": "Welcome, {{name}}! here's your",
+    "welcomeNoName": "Welcome! here's your",
     "welcomeLine2": "health snapshot for today!",
     "today": "Today is {{date}}",
     "searchPlaceholder": "Search...",
@@ -83,6 +84,7 @@
     "location": "Location",
     "accountSettings": "Account settings",
     "personalInfo": "Personal Information",
+    "goalsRow": "Goals",
     "reminder": "Reminder",
     "sound": "Sound",
     "preferences": "Preferences",
@@ -97,9 +99,112 @@
       "knees": "Knees", "wrists": "Wrists", "ankles": "Ankles"
     },
     "none": "None selected",
-    "demoProfile": "Demonstration profile — edit it to use your own details."
+    "demoProfile": "Demonstration profile — edit it to use your own details.",
+    "empty": "No profile yet",
+    "emptyHint": "Tap Edit and add your name to create your profile. Everything else is optional.",
+    "loading": "Loading your profile…",
+    "loadFailed": "Your saved profile couldn't be read, so editing is turned off to avoid replacing it. Try reloading.",
+    "reload": "Reload profile",
+    "savedPartial": "Profile saved, but the new weight could not be saved.",
+    "unavailableNote": "Your profile can't be shown or edited right now.",
+    "a11y": { "loaded": "Profile loaded." },
+    "legacyUnreadable": "Your earlier profile couldn't be read, so it was not imported. It was left untouched.",
+    "notes": {
+      "age": {
+        "old": "entered on {{date}}, more than a year ago; it may be out of date.",
+        "unknown_date": "carried over from your earlier profile; the date it was entered is unknown.",
+        "future_date": "dated in the future ({{date}}); please check it."
+      },
+      "weight": {
+        "old": "logged on {{date}}, more than 30 days ago; it may be out of date.",
+        "unknown_date": "carried over from your earlier profile; the date it was entered is unknown.",
+        "future_date": "dated in the future ({{date}}); please check it."
+      }
+    }
+  },
+  "goals": {
+    "title": "Goals",
+    "intro": "Set your daily targets. Values marked Estimate come from general formulas using the details you enter here. They are not medical advice.",
+    "loading": "Loading your goals…",
+    "retry": "Try again",
+    "detailsTitle": "Your details",
+    "detailsNote": "Used only to calculate estimates on this screen. Your profile is not changed.",
+    "sex": "Sex",
+    "sexOptions": { "female": "Female", "male": "Male" },
+    "age": "Age (years)",
+    "height": "Height (cm)",
+    "weight": "Weight (kg)",
+    "activity": "Activity level",
+    "activityLevels": {
+      "sedentary": "Sedentary", "light": "Lightly active", "moderate": "Moderately active", "active": "Very active", "very_active": "Extremely active"
+    },
+    "goalTitle": "Nutrition goal",
+    "goalTypes": { "lose_fat": "Lose fat", "maintain": "Balanced nutrition", "build_muscle": "Build muscle" },
+    "adjustmentDeficit": "Calorie deficit (%)",
+    "adjustmentSurplus": "Calorie surplus (%)",
+    "adjustmentHint": "Starts at 20% for fat loss and 10% for muscle gain. You can change it.",
+    "calculate": "Calculate estimate",
+    "recalculate": "Recalculate estimate",
+    "fixFields": "Fill in the marked fields to calculate an estimate.",
+    "stale": "Your details changed since this estimate was calculated. Recalculate to update it. If you save without recalculating, these values are saved as your own goals, not as an estimate.",
+    "floorNote": "The calorie target is set to your estimated basal metabolic rate (BMR) because the adjusted calories would have been lower than that.",
+    "targetsTitle": "Daily targets",
+    "kcal": "Calories",
+    "protein": "Protein",
+    "carbs": "Carbohydrates",
+    "fat": "Fat",
+    "water": "Water",
+    "unitKcal": "kcal",
+    "unitG": "g",
+    "unitMl": "ml",
+    "estimate": "Estimate",
+    "waterEstimate": "Preliminary estimate",
+    "waterNote": "The water estimate (35 ml per kg of body weight) is preliminary and is not medical advice.",
+    "optionalNote": "Leave calories or macros empty if you don't want a target for them.",
+    "weeklyTitle": "Workouts per week",
+    "weeklyNote": "Choose your own target, from 0 to 14 workouts a week.",
+    "save": "Save goals",
+    "saving": "Saving…",
+    "saved": "Goals saved",
+    "savedEstimate": "Saved. Values still marked Estimate remain estimates.",
+    "loadFailed": "Your saved goals couldn't be read, so saving is turned off to avoid replacing them. Try reloading.",
+    "reload": "Reload saved goals",
+    "calorieConflict": "With these details your estimated calorie need is above the largest target this app can store (6000 kcal), so no estimate can be shown. Check your details or enter your goals yourself.",
+    "outdated": "Outdated estimate",
+    "edited": "Edited",
+    "savedStale": "Saved as your own goals. They were not recalculated after your details changed.",
+    "limits": {
+      "kcal_min": "Calories were raised to the app minimum of 800 kcal.",
+      "kcal_max": "Calories were limited to the app maximum of 6000 kcal.",
+      "protein_max": "Protein was limited to the app maximum of 600 g.",
+      "fat_max": "Fat was limited to the app maximum of 600 g.",
+      "carbs_zero": "Protein and fat alone use more than the calorie target, so carbohydrates are set to 0 g and the macros add up to more than the calories. Consider a higher calorie target.",
+      "carbs_max": "Carbohydrates were limited to the app maximum of 1500 g.",
+      "water_min": "Water was raised to the app minimum of 500 ml.",
+      "water_max": "Water was limited to the app maximum of 8000 ml."
+    },
+    "hints": {
+      "age": {
+        "old": "Your saved age ({{value}}) was entered on {{date}}, more than a year ago, so it was not filled in. Enter your current age.",
+        "unknown_date": "Your saved age ({{value}}) has no entry date, so it was not filled in. Enter your current age.",
+        "future_date": "Your saved age ({{value}}) is dated in the future ({{date}}), so it was not filled in. Enter your current age."
+      },
+      "weight": {
+        "old": "Your last saved weight ({{value}} kg) is from {{date}}, more than 30 days ago, so it was not filled in. Enter your current weight.",
+        "unknown_date": "Your last saved weight ({{value}} kg) has no valid date, so it was not filled in. Enter your current weight.",
+        "future_date": "Your last saved weight ({{value}} kg) is dated in the future ({{date}}), so it was not filled in. Enter your current weight."
+      }
+    },
+    "a11y": {
+      "loaded": "Goals loaded.",
+      "calculated": "Estimate calculated. Review the daily targets.",
+      "needsAttention": "Please check: {{fields}}."
+    },
+    "notReady": "Saving isn't available right now."
   },
   "validation": {
+    "weightRangeKg": "Enter a weight between 20 and 500 kg.",
+    "ambiguousNumber": "Write the number without a thousands separator (for example 1500), or with one decimal mark (for example 1.5).",
     "nameRequired": "Please enter a name.",
     "nameTooLong": "Name must be 40 characters or fewer.",
     "locationTooLong": "Location must be 60 characters or fewer.",

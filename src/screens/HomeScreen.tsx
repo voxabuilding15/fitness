@@ -9,6 +9,7 @@ import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../components/Icon';
 import { IconButton } from '../components/IconButton';
 import { Screen } from '../components/Screen';
+import { useProfileName } from '../context/ProfileContext';
 import { SectionHeader } from '../components/SectionHeader';
 import { StatCard } from '../components/StatCard';
 import { WorkoutCard } from '../components/WorkoutCard';
@@ -25,12 +26,14 @@ const STAT_UNIT = { steps: 'common.steps', kcal: 'common.kcal', km: 'common.km' 
 
 export default function HomeScreen() {
   const { t } = useTranslation();
-  const { profile, settings } = useApp();
+  const { settings } = useApp();
+  // the stored name; null = none (yet, or the database is unavailable): no name is ever invented, and the built-in demo profile is never used
+  const name = useProfileName();
   const { formatDate, formatNumber } = useFormat();
   const [query, setQuery] = useState('');
   const [showDeviceNote, setShowDeviceNote] = useState(false);
 
-  const firstName = profile.name.trim().split(/\s+/)[0] ?? '';
+  const firstName = (name ?? '').trim().split(/\s+/)[0] ?? '';
   const todayWorkout = getWorkout(TODAYS_WORKOUT_ID)!;
   const stats = activityProvider.getToday();
   const searching = query.trim().length > 0;
@@ -51,7 +54,7 @@ export default function HomeScreen() {
   }, [query, searching, t]);
 
   // Split the welcome line so the user's name can be bold wherever it lands in the translation
-  const line1 = t('home.welcomeLine1', { name: '\u0000' }).split('\u0000');
+  const line1 = firstName ? t('home.welcomeLine1', { name: '\u0000' }).split('\u0000') : [t('home.welcomeNoName'), ''];
 
   return (
     <Screen>
@@ -61,7 +64,7 @@ export default function HomeScreen() {
           <IconButton icon="phone-portrait-outline" label={t('home.device')} onPress={() => setShowDeviceNote((v) => !v)} />
           <IconButton icon="notifications-outline" label={t('home.notifications')} badge={!settings.reminders.enabled} onPress={() => router.push('/reminders')} />
           <Pressable accessibilityRole="button" accessibilityLabel={t('home.avatar')} onPress={() => router.navigate('/profile')}>
-            <Avatar name={profile.name} size={44} />
+            <Avatar name={name ?? ''} size={44} />
           </Pressable>
         </View>
       </View>
@@ -76,7 +79,7 @@ export default function HomeScreen() {
       <View>
         <AppText size={21} weight="light" color={colors.onGradientMuted} style={styles.welcome}>
           {line1[0]}
-          <AppText size={21} weight="bold" color={colors.onGradient}>{firstName}</AppText>
+          {firstName ? <AppText size={21} weight="bold" color={colors.onGradient}>{firstName}</AppText> : null}
           {line1[1]}
         </AppText>
         <AppText size={21} weight="semibold" color={colors.onGradient} style={styles.welcome}>{t('home.welcomeLine2')}</AppText>

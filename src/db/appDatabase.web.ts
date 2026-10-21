@@ -8,3 +8,5 @@ const result: DbInitResult = { status: 'unavailable', error: { kind: 'unavailabl
 
 export const getAppDatabase = async () => result;
 export const retryAppDatabase = async () => result;
+/** There is no database on web, so there is nothing to import into. */
+export const getLegacyImportResult = (): null => null;

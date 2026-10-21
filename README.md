@@ -38,7 +38,7 @@ src/screens/      Screen implementations
 src/components/   AppHeader, BottomNavigation, StatCard, WorkoutCard, MetricSelector,
                   WeeklyActivityChart, HeartRateWave, SettingRow, ProfileSummaryCard, …
 src/domain/       Pure logic: Result/errors, dates, session rules, Zod schemas, repository interfaces
-src/db/           Offline SQLite data layer (migrations, repositories, backups); not yet used by screens
+src/db/           Offline SQLite data layer (migrations, repositories, backups); profile and goals use it
 src/services/     activityService (demo data + provider seam), profileService, settingsService,
                   workoutSession (pure reducer), reminderService, soundService, storage
 src/locales/      en.json, ar.json

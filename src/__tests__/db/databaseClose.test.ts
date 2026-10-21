@@ -1,3 +1,4 @@
+import { LATEST_VERSION } from '../../db/migrations';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -62,7 +63,7 @@ describe('F5: close() after a failed ROLLBACK (poisoned connection)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'fitness-f5-'));
     try {
       const d = new InjectedDriver(new NodeSqliteDriver(join(dir, 'fitness.db')));
-      d.failWhen = /PRAGMA user_version = 6/; // makes the upgrade transaction fail...
+      d.failWhen = new RegExp(`PRAGMA user_version = ${LATEST_VERSION}`); // makes the upgrade transaction fail...
       d.failRollback = true; // ...and the ROLLBACK fail too
       const r = await createDatabaseInitializer({ open: async () => ({ driver: d, backup: new NodeFileBackupStrategy(dir) }) }).get();
       expect(r.status).toBe('unavailable');

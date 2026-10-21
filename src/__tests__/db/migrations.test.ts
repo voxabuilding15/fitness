@@ -27,8 +27,8 @@ describe('migrations from an empty database', () => {
   it('creates the full schema and sets user_version to the latest version', async () => {
     const db = await fresh();
     const r = await runMigrations(db);
-    expect(r.ok && r.value).toMatchObject({ fromVersion: 0, toVersion: LATEST_VERSION, applied: [1, 2, 3, 4, 5, 6], backup: null });
-    expect(await version(db)).toBe(6);
+    expect(r.ok && r.value).toMatchObject({ fromVersion: 0, toVersion: LATEST_VERSION, applied: MIGRATIONS.map((m) => m.version), backup: null });
+    expect(await version(db)).toBe(LATEST_VERSION);
     expect(await tableNames(db)).toEqual([
       'app_meta', 'exercises', 'foods', 'goals', 'habit_logs', 'habits', 'meal_entries', 'profile',
       'session_exercises', 'session_sets', 'template_exercises', 'water_entries', 'weight_entries', 'workout_sessions', 'workout_templates',
@@ -48,12 +48,12 @@ describe('migrations from an empty database', () => {
     await runMigrations(db);
     await db.run("INSERT INTO app_meta(key,value) VALUES ('k','v')");
     const again = await runMigrations(db);
-    expect(again.ok && again.value).toMatchObject({ fromVersion: 6, toVersion: 6, applied: [] });
+    expect(again.ok && again.value).toMatchObject({ fromVersion: LATEST_VERSION, toVersion: LATEST_VERSION, applied: [] });
     expect((await db.first<{ value: string }>("SELECT value FROM app_meta WHERE key='k'"))?.value).toBe('v');
   });
   it('the shipped migration list is valid and ordered', () => {
     expect(validateMigrationList(MIGRATIONS)).toBeNull();
-    expect(MIGRATIONS.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(MIGRATIONS.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(validateMigrationList([{ version: 2, name: 'x', sql: '' }])).toMatch(/without gaps/);
     expect(validateMigrationList([MIGRATIONS[0], MIGRATIONS[2]])).toMatch(/without gaps/);
   });
@@ -101,7 +101,7 @@ describe('failure behaviour', () => {
     const db = await fresh();
     await db.exec('CREATE TABLE precious(x TEXT); INSERT INTO precious VALUES (\'keep\'); PRAGMA user_version = 99;');
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir) });
-    expect(r).toEqual({ ok: false, error: { kind: 'db_too_new', found: 99, supported: 6 } });
+    expect(r).toEqual({ ok: false, error: { kind: 'db_too_new', found: 99, supported: LATEST_VERSION } });
     expect(await version(db)).toBe(99);
     expect(await db.all('SELECT x FROM precious')).toEqual([{ x: 'keep' }]);
     expect(readdirSync(dir)).toEqual([]);
@@ -120,8 +120,8 @@ describe('backups before upgrading a populated database', () => {
     const db = await populatedV3();
     const clock = new ManualClock(1_800_000_000_000);
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir), clock });
-    expect(r.ok && r.value).toMatchObject({ fromVersion: 3, toVersion: 6, applied: [4, 5, 6], backup: backupName({ fromVersion: 3, toVersion: 6, timestamp: clock.now() }) });
-    expect(await version(db)).toBe(6);
+    expect(r.ok && r.value).toMatchObject({ fromVersion: 3, toVersion: LATEST_VERSION, applied: [4, 5, 6, 7], backup: backupName({ fromVersion: 3, toVersion: LATEST_VERSION, timestamp: clock.now() }) });
+    expect(await version(db)).toBe(LATEST_VERSION);
     // the backup is a real, separate database frozen at v3 with the user's data
     const copy = new NodeSqliteDriver(join(dir, (r as any).value.backup));
     expect((await copy.all<{ user_version: number }>('PRAGMA user_version'))[0].user_version).toBe(3);
@@ -132,12 +132,12 @@ describe('backups before upgrading a populated database', () => {
   it('never overwrites an existing backup: a taken name is skipped and its content is left byte-for-byte', async () => {
     const db = await populatedV3();
     const clock = new ManualClock(1_800_000_000_000);
-    const taken = join(dir, backupName({ fromVersion: 3, toVersion: 6, timestamp: clock.now() }));
+    const taken = join(dir, backupName({ fromVersion: 3, toVersion: LATEST_VERSION, timestamp: clock.now() }));
     writeFileSync(taken, 'SOMEONE ELSES BACKUP');
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir), clock });
     expect(r.ok && r.value.backup).toMatch(/-1\.db$/);
     expect(readFileSync(taken).toString()).toBe('SOMEONE ELSES BACKUP');
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(LATEST_VERSION);
   });
   it('REFUSES to migrate a populated database when no backup strategy is available', async () => {
     const db = await populatedV3();
@@ -224,7 +224,7 @@ describe('backups before upgrading a populated database', () => {
     const flaky: BackupStrategy = { create: (s, c) => real.create(s, c), validate: (r, e) => real.validate(r, e), prune: async (n) => ({ removed: [], failed: n.map((name) => ({ name, message: 'EBUSY' })) }) };
     const r = await runMigrations(db, { backup: flaky, keepBackups: 2 });
     expect(r.ok && r.value.warnings).toEqual([expect.stringContaining('EBUSY')]);
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(LATEST_VERSION);
     expect(existsSync(join(dir, oldBackup(1)))).toBe(true); // retained, and still tracked for a later retry
     const list = JSON.parse((await db.first<{ value: string }>('SELECT value FROM app_meta WHERE key=?', [BACKUPS_META_KEY]))!.value);
     expect(list).toContain(oldBackup(1));
@@ -239,14 +239,14 @@ describe('backups before upgrading a populated database', () => {
     const throwing: BackupStrategy = { create: (s, c) => real.create(s, c), validate: (r, e) => real.validate(r, e), prune: async () => { throw new Error('kaboom'); } };
     const r = await runMigrations(db, { backup: throwing, keepBackups: 2 });
     expect(r.ok && r.value.warnings.join(' ')).toMatch(/bookkeeping failed: kaboom/);
-    expect(await version(db)).toBe(6);
-    expect(readdirSync(dir).filter((f) => f.startsWith('fitness-premigrate-v3-to-v6-'))).toHaveLength(1);
+    expect(await version(db)).toBe(LATEST_VERSION);
+    expect(readdirSync(dir).filter((f) => f.startsWith(`fitness-premigrate-v3-to-v${LATEST_VERSION}-`))).toHaveLength(1);
   });
   it('tolerates corrupt bookkeeping JSON', async () => {
     const db = await populatedV3();
     await db.run('INSERT INTO app_meta(key,value) VALUES (?,?)', [BACKUPS_META_KEY, '{not json']);
     const r = await runMigrations(db, { backup: new NodeFileBackupStrategy(dir) });
     expect(r.ok).toBe(true);
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(LATEST_VERSION);
   });
 });

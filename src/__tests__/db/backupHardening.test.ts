@@ -5,7 +5,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { BACKUPS_META_KEY, BACKUP_NAME_PATTERN, MAX_KEEP_BACKUPS, MIN_KEEP_BACKUPS, backupName, clampKeep, isBackupName, parseBackupList, type BackupStrategy } from '../../db/backup';
 import { Database } from '../../db/database';
 import { ExpoBackupStrategy, type ExpoSqliteApi } from '../../db/expoBackup';
-import { MIGRATIONS, type Migration } from '../../db/migrations';
+import { MIGRATIONS, type Migration, LATEST_VERSION } from '../../db/migrations';
 import { runMigrations } from '../../db/migrations/runner';
 import { NodeFileBackupStrategy } from '../../db/testing/nodeFileBackup';
 import { NodeSqliteDriver } from '../../db/testing/nodeSqliteDriver';
@@ -247,7 +247,7 @@ describe('F4: backups cannot accumulate without bound', () => {
     clock.advance(H);
     const ok = await runMigrations(db, { backup: strategy, clock, keepBackups: 3 });
     expect(ok.ok).toBe(true);
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(LATEST_VERSION);
     const files = backupsOnDisk();
     expect(files).toHaveLength(3);
     await strategy.validate({ name: (ok as any).value.backup }, { userVersion: 3 });
@@ -278,7 +278,7 @@ describe('F6: migrations can no longer silently lose data (row-loss guard, incl.
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   const rebuild = (extra: Partial<Migration> = {}): Migration => ({
-    version: 7, name: 'rebuild workout_templates', ...extra,
+    version: LATEST_VERSION + 1, name: 'rebuild workout_templates', ...extra,
     sql: `CREATE TABLE workout_templates_new(id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, notes TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, extra TEXT) STRICT;
       INSERT INTO workout_templates_new(id,name,notes,created_at,updated_at) SELECT id,name,notes,created_at,updated_at FROM workout_templates;
       DROP TABLE workout_templates; ALTER TABLE workout_templates_new RENAME TO workout_templates;`,
@@ -294,8 +294,8 @@ describe('F6: migrations can no longer silently lose data (row-loss guard, incl.
   it('a rebuild migration that cascade-deletes child rows is rolled back as a whole (it used to report success)', async () => {
     const env = await withTemplate();
     const r = await runMigrations(env.db, { migrations: [...MIGRATIONS, rebuild()], backup: new NodeFileBackupStrategy(dir) });
-    expect(errorOf(r)).toMatchObject({ kind: 'migration', version: 7, message: expect.stringMatching(/template_exercises.*1 -> 0/) });
-    expect(await version(env.db)).toBe(6);
+    expect(errorOf(r)).toMatchObject({ kind: 'migration', version: LATEST_VERSION + 1, message: expect.stringMatching(/template_exercises.*1 -> 0/) });
+    expect(await version(env.db)).toBe(LATEST_VERSION);
     expect(await count(env.db, 'template_exercises')).toBe(1);
     expect(await env.db.all("SELECT name FROM sqlite_master WHERE name='workout_templates_new'")).toEqual([]); // fully rolled back
   });
@@ -303,23 +303,23 @@ describe('F6: migrations can no longer silently lose data (row-loss guard, incl.
     const env = await withTemplate();
     const r = await runMigrations(env.db, { migrations: [...MIGRATIONS, rebuild({ allowRowLoss: true })], backup: new NodeFileBackupStrategy(dir) });
     expect(r.ok).toBe(true);
-    expect(await version(env.db)).toBe(7);
+    expect(await version(env.db)).toBe(LATEST_VERSION + 1);
   });
   it('a plain DELETE or a DROP of a table that holds rows is caught; dropping an EMPTY table is fine', async () => {
     const env = await withTemplate();
     unwrap(await env.repos.profile.save({ displayName: 'Sara' }));
     const strategy = new NodeFileBackupStrategy(dir);
-    expect(errorOf(await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: 7, name: 'wipe', sql: 'DELETE FROM profile' }], backup: strategy }))).toMatchObject({ kind: 'migration', message: expect.stringMatching(/"profile" \(1 -> 0\)/) });
+    expect(errorOf(await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: LATEST_VERSION + 1, name: 'wipe', sql: 'DELETE FROM profile' }], backup: strategy }))).toMatchObject({ kind: 'migration', message: expect.stringMatching(/"profile" \(1 -> 0\)/) });
     expect(await count(env.db, 'profile')).toBe(1);
-    expect(errorOf(await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: 7, name: 'drop', sql: 'DROP TABLE template_exercises' }], backup: strategy }))).toMatchObject({ kind: 'migration', message: expect.stringMatching(/"template_exercises" \(1 -> 0\)/) });
+    expect(errorOf(await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: LATEST_VERSION + 1, name: 'drop', sql: 'DROP TABLE template_exercises' }], backup: strategy }))).toMatchObject({ kind: 'migration', message: expect.stringMatching(/"template_exercises" \(1 -> 0\)/) });
     expect(await count(env.db, 'template_exercises')).toBe(1);
-    expect(await version(env.db)).toBe(6);
-    const empty = await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: 7, name: 'drop-empty', sql: 'DROP TABLE habit_logs' }], backup: strategy });
+    expect(await version(env.db)).toBe(LATEST_VERSION);
+    const empty = await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: LATEST_VERSION + 1, name: 'drop-empty', sql: 'DROP TABLE habit_logs' }], backup: strategy });
     expect(empty.ok).toBe(true); // habit_logs held no rows, so nothing was lost
   });
   it('additive migrations (new tables, new rows, new columns) are unaffected', async () => {
     const env = await withTemplate();
-    const r = await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: 7, name: 'additive', sql: 'ALTER TABLE profile ADD COLUMN nickname TEXT; CREATE TABLE extra(id INTEGER PRIMARY KEY); INSERT INTO extra VALUES (1); INSERT INTO app_meta(key,value) VALUES (\'k\',\'v\');' }], backup: new NodeFileBackupStrategy(dir) });
+    const r = await runMigrations(env.db, { migrations: [...MIGRATIONS, { version: LATEST_VERSION + 1, name: 'additive', sql: 'ALTER TABLE profile ADD COLUMN nickname TEXT; CREATE TABLE extra(id INTEGER PRIMARY KEY); INSERT INTO extra VALUES (1); INSERT INTO app_meta(key,value) VALUES (\'k\',\'v\');' }], backup: new NodeFileBackupStrategy(dir) });
     expect(r.ok).toBe(true);
     expect(await count(env.db, 'template_exercises')).toBe(1);
   });

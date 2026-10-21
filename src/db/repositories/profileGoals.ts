@@ -6,11 +6,11 @@ import { RepoContext, guard } from './base';
 
 interface ProfileRow {
   display_name: string; location: string | null; sex: Profile['sex']; age_years: number | null; age_set_on: string | null;
-  height_cm: number | null; activity_level: Profile['activityLevel']; updated_at: number;
+  height_cm: number | null; activity_level: Profile['activityLevel']; undated_weight_kg: number | null; updated_at: number;
 }
 const toProfile = (r: ProfileRow): Profile => ({
   displayName: r.display_name, location: r.location, sex: r.sex, ageYears: r.age_years, ageSetOn: r.age_set_on,
-  heightCm: r.height_cm, activityLevel: r.activity_level, updatedAt: r.updated_at,
+  heightCm: r.height_cm, activityLevel: r.activity_level, undatedWeightKg: r.undated_weight_kg, updatedAt: r.updated_at,
 });
 
 export function createProfileRepository(ctx: RepoContext): ProfileRepository {
@@ -24,11 +24,18 @@ export function createProfileRepository(ctx: RepoContext): ProfileRepository {
       const parsed = parseInput(profileInput, input);
       if (!parsed.ok) return err(parsed.error);
       const v = parsed.value;
-      return guard(async () => {
+      return guard(() => ctx.db.transaction(async (tx) => {
         const now = ctx.now();
-        // Only record when an age was entered; the date lets the app say how old that figure is, never guess.
-        const ageSetOn = v.ageYears === undefined ? null : ctx.localDate(now);
-        await ctx.db.run(
+        const existing = await tx.first<ProfileRow>('SELECT * FROM profile WHERE id=1');
+        // The entry date follows the VALUE: a new or changed age (or one the person just re-confirmed) is dated today; the same
+        // age as before keeps its stored date - which may be NULL (unknown) - so saving other fields never makes an old age look current.
+        let ageSetOn: string | null = null;
+        if (v.ageYears !== undefined) {
+          const sameAsStored = existing !== null && existing.age_years === v.ageYears;
+          ageSetOn = sameAsStored && !v.ageConfirmed ? existing.age_set_on : ctx.localDate(now);
+        }
+        // undated_weight_kg is not part of the input; the upsert leaves it as it was
+        await tx.run(
           `INSERT INTO profile(id,display_name,location,sex,age_years,age_set_on,height_cm,activity_level,updated_at)
            VALUES (1,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name, location=excluded.location, sex=excluded.sex,
@@ -36,8 +43,8 @@ export function createProfileRepository(ctx: RepoContext): ProfileRepository {
              activity_level=excluded.activity_level, updated_at=excluded.updated_at`,
           [v.displayName, v.location || null, v.sex ?? null, v.ageYears ?? null, ageSetOn, v.heightCm ?? null, v.activityLevel ?? null, now],
         );
-        return toProfile((await ctx.db.first<ProfileRow>('SELECT * FROM profile WHERE id=1'))!);
-      });
+        return toProfile((await tx.first<ProfileRow>('SELECT * FROM profile WHERE id=1'))!);
+      }));
     },
   };
 }

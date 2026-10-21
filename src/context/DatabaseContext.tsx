@@ -1,12 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { AppError } from '../domain/errors';
 import type { Repositories } from '../domain/repositories';
-import { getAppDatabase, retryAppDatabase } from '../db/appDatabase';
+import { getAppDatabase, getLegacyImportResult, retryAppDatabase } from '../db/appDatabase';
 import { reportDbInitFailure } from '../db/diagnostics';
 
 type DatabaseState =
   | { status: 'loading' }
-  | { status: 'ready'; repos: Repositories }
+  /** `legacyError`: the old profile could not be read (it was left untouched); null when the import was fine or not needed. */
+  | { status: 'ready'; repos: Repositories; legacyError: AppError | null }
   | { status: 'unavailable'; error: AppError };
 
 interface DatabaseContextValue {
@@ -28,7 +29,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     fn().then((r) => {
       if (r.status === 'unavailable') reportDbInitFailure(r.error); // dev builds only; a sanitized summary, never user data
       if (cancelled) return;
-      setState(r.status === 'ready' ? { status: 'ready', repos: r.repos } : { status: 'unavailable', error: r.error });
+      const legacy = getLegacyImportResult();
+      setState(r.status === 'ready' ? { status: 'ready', repos: r.repos, legacyError: legacy && !legacy.ok ? legacy.error : null } : { status: 'unavailable', error: r.error });
     });
     return () => {
       cancelled = true;
