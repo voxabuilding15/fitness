@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/cairo';
 import '../i18n';
 import { AppProvider, useApp } from '../context/AppContext';
+import { DatabaseProvider } from '../context/DatabaseContext';
 import { colors } from '../theme';
 
 // Layout direction is driven by the root view below, so don't let the OS locale flip it implicitly.
@@ -44,7 +45,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <Shell />
+        <DatabaseProvider>
+          <Shell />
+        </DatabaseProvider>
       </AppProvider>
     </SafeAreaProvider>
   );

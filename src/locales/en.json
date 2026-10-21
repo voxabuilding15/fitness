@@ -105,7 +105,27 @@
     "locationTooLong": "Location must be 60 characters or fewer.",
     "ageRange": "Enter a whole age between 10 and 100.",
     "heightRange": "Enter a height between 100 and 250 cm.",
-    "weightRange": "Enter a weight between 30 and 300 kg."
+    "weightRange": "Enter a weight between 30 and 300 kg.",
+    "required": "This field is required.",
+    "tooLong": "This text is too long.",
+    "outOfRange": "This value is outside the allowed range.",
+    "invalidDate": "Enter a valid date.",
+    "invalid": "This value is not valid."
+  },
+  "errors": {
+    "validation": "Some values are not valid. Please check them.",
+    "notFound": "That item could not be found.",
+    "constraint": "This change isn't allowed because it conflicts with saved data.",
+    "conflict": "A workout is already in progress.",
+    "invalidTransition": "That action isn't possible in the workout's current state.",
+    "immutable": "This item can't be changed.",
+    "dbTooNew": "Your saved data was created by a newer version of the app. Please update the app.",
+    "migration": "Your data couldn't be upgraded. Nothing was changed.",
+    "backupFailed": "A safety backup couldn't be created, so your data was left unchanged.",
+    "busy": "The app is busy. Please try again.",
+    "unavailable": "Storage isn't available right now.",
+    "legacyDataInvalid": "Previously saved data couldn't be read. It was left untouched.",
+    "unknown": "Something went wrong. Please try again."
   },
   "reminders": {
     "title": "Reminders",

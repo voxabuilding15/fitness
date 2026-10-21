@@ -27,7 +27,7 @@ npm run test:ci    # tests with an (informational) coverage report in node_modul
 npm run export:ios # verifies an iOS bundle builds
 ```
 
-Requires Node `^20.19.4 || ^22.13.0 || ^24.3.0` (see `.nvmrc`). CI is described in
+Requires Node `^22.13.0 || ^24.3.0` (see `.nvmrc`; `node:sqlite` is used by the database tests). CI is described in
 `docs/ARCHITECTURE.md`, which also separates the current architecture from the planned one.
 
 ## Structure
@@ -37,6 +37,8 @@ src/app/          Expo Router routes ((tabs) = Home, Workouts, Statistics, Profi
 src/screens/      Screen implementations
 src/components/   AppHeader, BottomNavigation, StatCard, WorkoutCard, MetricSelector,
                   WeeklyActivityChart, HeartRateWave, SettingRow, ProfileSummaryCard, …
+src/domain/       Pure logic: Result/errors, dates, session rules, Zod schemas, repository interfaces
+src/db/           Offline SQLite data layer (migrations, repositories, backups); not yet used by screens
 src/services/     activityService (demo data + provider seam), profileService, settingsService,
                   workoutSession (pure reducer), reminderService, soundService, storage
 src/locales/      en.json, ar.json

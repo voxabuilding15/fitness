@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "engines": {
-    "node": "^20.19.4 || ^22.13.0 || ^24.3.0 || >=25.0.0"
+    "node": "^22.13.0 || ^24.3.0 || >=25.0.0"
   },
   "dependencies": {
     "@expo-google-fonts/cairo": "^0.4.2",
@@ -22,6 +22,7 @@
     "expo-notifications": "~57.0.23",
     "expo-router": "~57.0.28",
     "expo-splash-screen": "~57.0.10",
+    "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "i18next": "^26.5.4",
     "react": "19.2.3",
@@ -31,7 +32,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
