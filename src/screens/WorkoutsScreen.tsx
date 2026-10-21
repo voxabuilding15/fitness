@@ -36,6 +36,16 @@ export default function WorkoutsScreen() {
         <AppText size={14} weight="medium" color={colors.dark}>{t('templates.link')}</AppText>
         <AppText size={11} color={colors.muted}>{t('templates.linkHint')}</AppText>
       </Pressable>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={t('history.link')}
+        accessibilityHint={t('history.linkHint')}
+        onPress={() => router.push('/history')}
+        style={styles.link}
+      >
+        <AppText size={14} weight="medium" color={colors.dark}>{t('history.link')}</AppText>
+        <AppText size={11} color={colors.muted}>{t('history.linkHint')}</AppText>
+      </Pressable>
       <View style={styles.list}>
         {WORKOUTS.map((w) => (
           <WorkoutCard key={w.id} workout={w} onPlay={() => router.push({ pathname: '/workout/[id]', params: { id: w.id } })} />

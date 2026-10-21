@@ -360,6 +360,14 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **Tested (Node, mocks):** the pure helpers, the triggers (insert/update/delete/move on completed, discarded and in-progress sessions, and a v8 -> v9 upgrade of a database holding completed history), and the screen against Node SQLite in English and Arabic: set entry and persistence, resume, invalid values, timed and distance exercises, duplicate taps, write/read failures, set removal, rest timer (with a controlled clock), finish with confirmation and summary, discard with confirmation and a following new start, writes from a stale screen after the workout ended elsewhere, and a session without a recorded plan. **Not verified on a device:** native SQLite, keyboard behaviour with several inputs, real timing of the timer when the app is backgrounded, screen-reader output, RTL layout.
 
+## 5i. Phase 4 - milestone 4.3: workout history
+
+**What it is.** "Workout history" on the Workouts tab (`/history`) lists the person's real finished workouts, newest first, 20 per page with "Show more". No migration and no new repository method: `hooks/useWorkoutHistory.ts` calls `sessions.list({ status: 'completed', limit, offset })` and never an unfiltered list, so discarded and in-progress sessions cannot appear (the unfiltered `list()` returns every status; see `SessionListFilter`). The first page is re-read each time the screen is focused; later pages are appended without repeating a row, and a failed "show more" keeps the rows already shown.
+
+**Details.** A row shows the workout's name, local date (`YYYY-MM-DD`) and length (`ended_at - started_at`, in minutes). Opening a row goes to the existing `/session/[id]` screen, which already renders a completed session read-only: its saved sets per exercise under the targets recorded at the start, and the summary counted from the saved sets. Its header now shows the workout's name for finished sessions instead of "Workout in progress". Empty, loading, unavailable and read-failed states are separate; a failed read is never shown as an empty history.
+
+**Not included:** statistics, charts, personal records, filtering or searching the history, deleting a workout. **Tested (Node, mocks):** the history screen against Node SQLite (empty, ordering, exclusion of discarded and running sessions, pagination, failed pages, failures, Arabic). **Not verified on a device:** native SQLite, screen-reader output, RTL layout.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a

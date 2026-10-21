@@ -280,6 +280,25 @@
     "exercises": "Exercises",
     "setsReps": "{{sets}} × {{amount}}"
   },
+  "history": {
+    "title": "Workout history",
+    "subtitle": "Your finished workouts, newest first",
+    "link": "Workout history",
+    "linkHint": "See and open your finished workouts",
+    "count": "Workouts shown: {{count}}",
+    "minutes": "{{minutes}} min",
+    "loading": "Loading your history…",
+    "loaded": "Your workout history is loaded.",
+    "empty": "No finished workouts yet.",
+    "emptyHint": "Finish a workout and it will appear here.",
+    "unavailable": "Your history isn't available right now.",
+    "readFailed": "Your history couldn't be read.",
+    "reload": "Try again",
+    "loadMore": "Show more",
+    "loadingMore": "Loading…",
+    "moreLoaded": "More workouts loaded. Workouts shown: {{count}}.",
+    "moreFailed": "More workouts couldn't be loaded."
+  },
   "liveSession": {
     "startTitle": "Workout",
     "start": "Start workout",

@@ -206,7 +206,7 @@ export default function SessionScreen() {
 
   return (
     <Screen withNav={false} avoidKeyboard>
-      <AppHeader title={t('liveSession.title')} />
+      <AppHeader title={session.status === 'in_progress' ? t('liveSession.title') : session.name} />
       <GlassCard strong style={styles.card}>
         <AppText size={20} weight="semibold" color={colors.ink} accessibilityRole="header">{session.name}</AppText>
         <AppText size={12} color={colors.muted}>{`${t(`liveSession.${statusKey}`)} · ${t('liveSession.startedOn', { date: session.localDate })}`}</AppText>
