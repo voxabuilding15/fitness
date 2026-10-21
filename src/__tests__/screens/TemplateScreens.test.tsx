@@ -89,7 +89,9 @@ const makeTemplate = async (name = 'Push day', slugs = ['bench_press', 'overhead
 };
 const addByName = async (name: string) => {
   await type(tpl.pickerSearch, name);
-  await pressLabel(`${tpl.add}: ${name}`);
+  // the label may carry hints after the name ("..., Already added: 1")
+  const pattern = new RegExp(`^${tpl.add}: ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(,|$)`);
+  await press((n) => pattern.test(String(n.props.accessibilityLabel ?? '')));
 };
 
 beforeEach(async () => {
@@ -283,6 +285,150 @@ describe('TemplateFormScreen (the builder)', () => {
     mockParams = {};
     await mount(TemplateFormScreen, { status: 'unavailable', error: { kind: 'unavailable', reason: 'x' } });
     expect(has(tpl.unavailable)).toBe(true);
+  });
+});
+
+describe('TemplateFormScreen: selection, ordering and validation UX', () => {
+  const group = (label: string) => tree.root.findAll((n: any) => n.props.accessibilityRole === 'radiogroup' && n.props.accessibilityLabel === label)[0];
+  const pickChip = async (groupLabel: string, option: string) => {
+    const radio = group(groupLabel).findAll((n: any) => n.props.accessibilityRole === 'radio' && typeof n.props.onPress === 'function' && textOf(n) === option)[0];
+    await act(async () => { await radio.props.onPress(); });
+    await flush();
+  };
+  const offered = (): string[] => [...new Set<string>(tree.root.findAll((n: any) => n.props.accessibilityRole === 'button' && String(n.props.accessibilityLabel ?? '').startsWith(`${tpl.add}: `)).map((n: any) => String(n.props.accessibilityLabel).slice(tpl.add.length + 2).split(',')[0]))];
+  const problemLines = () => allText().filter((x: string) => /^(Workout name|Exercises|Notes|.*, (Sets|Rest|Reps|Seconds).*): /.test(x));
+
+  it('a fresh form shows no errors; after a failed Save it lists every problem, and each disappears as soon as it is fixed', async () => {
+    await mount(TemplateFormScreen);
+    expect(has(tpl.fixTitle)).toBe(false);
+    await pressText(tpl.save);
+    expect(has(tpl.fixTitle)).toBe(true);
+    expect(problemLines()).toEqual([`${tpl.name}: ${en.validation.required}`, `${tpl.exercises}: ${tpl.needExercise}`]);
+    await type(tpl.name, 'Legs');
+    expect(problemLines()).toEqual([`${tpl.exercises}: ${tpl.needExercise}`]);
+    await pressText(tpl.add);
+    await addByName('Pull-up');
+    expect(has(tpl.fixTitle)).toBe(false); // nothing left to fix, without pressing Save again
+    expect(unwrap(await env.repos.templates.list())).toEqual([]); // and nothing was saved by that
+  });
+
+  it('a bad number is named by exercise and field, and is cleared by typing a good one', async () => {
+    await mount(TemplateFormScreen);
+    await type(tpl.name, 'Legs');
+    await pressText(tpl.add);
+    await addByName('Pull-up');
+    await type(`${tpl.sets}, Pull-up`, '0');
+    await pressText(tpl.save);
+    expect(problemLines()).toEqual([`Pull-up, ${tpl.sets}: ${en.validation.outOfRange}`]);
+    await type(`${tpl.sets}, Pull-up`, '3');
+    expect(has(tpl.fixTitle)).toBe(false);
+    await pressText(tpl.save);
+    expect(unwrap(await env.repos.templates.list())).toHaveLength(1);
+  });
+
+  it('a duplicate name is reported with the others, and fixed by renaming', async () => {
+    await makeTemplate('Push day');
+    await mount(TemplateFormScreen);
+    await type(tpl.name, 'push day');
+    await pressText(tpl.add);
+    await addByName('Pull-up');
+    await pressText(tpl.save);
+    expect(problemLines()).toEqual([`${tpl.name}: ${tpl.duplicateName}`]);
+    await type(tpl.name, 'Pull day');
+    expect(has(tpl.fixTitle)).toBe(false);
+  });
+
+  it('Cancel leaves at once when nothing changed, and when a change was undone', async () => {
+    await mount(TemplateFormScreen);
+    await pressText(tpl.cancel);
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    await type(tpl.name, 'x');
+    await type(tpl.name, '');
+    await pressText(tpl.cancel);
+    expect(mockGoBack).toHaveBeenCalledTimes(2);
+  });
+
+  it('Cancel with unsaved changes asks first; keep editing keeps them, discard leaves without saving', async () => {
+    await mount(TemplateFormScreen);
+    await type(tpl.name, 'Draft');
+    await pressText(tpl.cancel);
+    expect(has(tpl.discardTitle)).toBe(true);
+    expect(mockGoBack).not.toHaveBeenCalled();
+    await pressText(tpl.keepEditing);
+    expect(input(tpl.name).props.value).toBe('Draft');
+    expect(has(tpl.discardTitle)).toBe(false);
+    await pressText(tpl.cancel);
+    await pressText(tpl.discardYes);
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(unwrap(await env.repos.templates.list())).toEqual([]);
+  });
+
+  it('editing an existing workout: changing it makes Cancel ask, an untouched form does not, and saving does not ask', async () => {
+    const t = await makeTemplate('Push day');
+    mockParams = { id: String(t.id) };
+    await mount(TemplateFormScreen);
+    await pressText(tpl.cancel);
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    await type(`${tpl.sets}, Barbell bench press`, '5');
+    await pressText(tpl.save);
+    expect(mockGoBack).toHaveBeenCalledTimes(2);
+    expect(has(tpl.discardTitle)).toBe(false);
+    expect(unwrap(await env.repos.templates.get(t.id)).exercises[0].targetSets).toBe(5);
+  });
+
+  it('the picker can be narrowed by muscle and equipment, shows how many match, and a filter with no match says so', async () => {
+    await mount(TemplateFormScreen);
+    await pressText(tpl.add);
+    const all = offered();
+    expect(has(`Matches: ${all.length}`)).toBe(true);
+    await pressText(en.library.filters);
+    await pickChip(en.library.muscle, en.library.muscles.chest);
+    const chest = offered();
+    expect(chest.length).toBeGreaterThan(0);
+    expect(chest.length).toBeLessThan(all.length);
+    expect(chest).toContain('Barbell bench press');
+    expect(chest).not.toContain('Pull-up');
+    await pickChip(en.library.equipment, en.library.equipmentNames.cable);
+    expect(offered().every((n) => chest.includes(n))).toBe(true);
+    await type(tpl.pickerSearch, 'zzzzz');
+    expect(has(tpl.pickerEmpty)).toBe(true);
+    await pressText(en.library.clearFilters); // clears the filters and the search text together
+    expect(has(tpl.pickerEmpty)).toBe(false);
+    expect(offered()).toEqual(all);
+  });
+
+  it('an exercise already in the workout says how many times, and can still be added again', async () => {
+    await mount(TemplateFormScreen);
+    await pressText(tpl.add);
+    await addByName('Pull-up');
+    await addByName('Pull-up');
+    expect(tree.root.findAll((n: any) => String(n.props.accessibilityLabel ?? '').startsWith(`${tpl.add}: Pull-up`)).some((n: any) => String(n.props.accessibilityLabel).includes('Already added: 2'))).toBe(true);
+    expect(rowNames()).toEqual(['1. Pull-up', '2. Pull-up']);
+  });
+
+  it('with many exercises, rows can be sent straight to the top or bottom', async () => {
+    await mount(TemplateFormScreen);
+    await pressText(tpl.add);
+    for (const name of ['Pull-up', 'Plank', 'Running', 'Walking']) await addByName(name);
+    expect(tree.root.findAll((n: any) => String(n.props.accessibilityLabel ?? '').startsWith(`${tpl.moveTop}:`))).toHaveLength(0); // four rows: not needed
+    await addByName('Burpee');
+    await pressLabel(`${tpl.moveTop}: Burpee`);
+    expect(rowNames()).toEqual(['1. Burpee', '2. Pull-up', '3. Plank', '4. Running', '5. Walking']);
+    expect(announced).toContain('Burpee moved to position 1 of 5.');
+    await pressLabel(`${tpl.moveBottom}: Burpee`);
+    expect(rowNames()).toEqual(['1. Pull-up', '2. Plank', '3. Running', '4. Walking', '5. Burpee']);
+    const first = tree.root.findAll((n: any) => n.props.accessibilityLabel === `${tpl.moveTop}: Pull-up`)[0];
+    expect(first.props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('uses the Arabic strings for the new messages', async () => {
+    mockLocale = 'ar';
+    await mount(TemplateFormScreen);
+    await pressText(ar.templates.save);
+    expect(has(ar.templates.fixTitle)).toBe(true);
+    await type(ar.templates.name, 'x');
+    await pressText(ar.templates.cancel);
+    expect(has(ar.templates.discardTitle)).toBe(true);
   });
 });
 

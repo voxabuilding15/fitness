@@ -556,7 +556,16 @@
     "deleted": "تم حذف الحصة.",
     "summaryReps": "{{sets}} × {{reps}} · راحة {{rest}} ث",
     "summaryDuration": "{{sets}} × {{seconds}} ث · راحة {{rest}} ث",
-    "repsRange": "{{min}}–{{max}}"
+    "repsRange": "{{min}}–{{max}}",
+    "fixTitle": "أصلح هذه الأمور قبل الحفظ",
+    "pickerCount": "النتائج: {{count}}",
+    "alreadyAdded": "مضاف بالفعل: {{count}}",
+    "moveTop": "نقل إلى الأعلى",
+    "moveBottom": "نقل إلى الأسفل",
+    "discardTitle": "هل تريد تجاهل تغييراتك؟",
+    "discardBody": "لديك تغييرات غير محفوظة.",
+    "discardYes": "نعم، تجاهل",
+    "keepEditing": "متابعة التعديل"
   },
   "exercises": {
     "pushUp": "تمرين الضغط", "inclinePushUp": "ضغط مائل", "diamondPushUp": "ضغط الماسة",

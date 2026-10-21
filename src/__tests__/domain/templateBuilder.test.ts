@@ -1,6 +1,6 @@
 import type { WorkoutTemplate } from '../../domain/models';
 import {
-  MAX_TEMPLATE_EXERCISES, addExercise, draftFromTemplate, emptyTemplateDraft, findDuplicateTemplate, itemIssueKey, moveItem, orderedIssueKeys,
+  MAX_TEMPLATE_EXERCISES, addExercise, countOf, draftFromTemplate, isDirty, moveItemTo, emptyTemplateDraft, findDuplicateTemplate, itemIssueKey, moveItem, orderedIssueKeys,
   planTemplateSave, removeItem, uniqueCopyName, updateItem, type TemplateDraft,
 } from '../../domain/templateBuilder';
 
@@ -143,5 +143,37 @@ describe('names', () => {
     expect(copy.length).toBeLessThanOrEqual(60);
     expect(copy.endsWith('(copy)')).toBe(true);
     expect(planTemplateSave(withItems(copy), [saved(1, long)]).ok).toBe(true);
+  });
+});
+
+describe('moveItemTo / countOf / isDirty', () => {
+  it('moves a row to the top or bottom, and does nothing when it is already there or unknown', () => {
+    const d = withItems('A', 5);
+    const keys = d.items.map((i) => i.key);
+    expect(moveItemTo(d, keys[3], 'top').items.map((i) => i.key)).toEqual([keys[3], keys[0], keys[1], keys[2], keys[4]]);
+    expect(moveItemTo(d, keys[1], 'bottom').items.map((i) => i.key)).toEqual([keys[0], keys[2], keys[3], keys[4], keys[1]]);
+    expect(moveItemTo(d, keys[0], 'top')).toBe(d);
+    expect(moveItemTo(d, keys[4], 'bottom')).toBe(d);
+    expect(moveItemTo(d, 999, 'top')).toBe(d);
+    expect(d.items.map((i) => i.key)).toEqual(keys); // the old draft is untouched
+  });
+  it('counts how many rows use an exercise', () => {
+    let d = withItems('A', 2); // exercises 1 and 2
+    d = addExercise(d, strength(1));
+    expect([countOf(d, 1), countOf(d, 2), countOf(d, 3)]).toEqual([2, 1, 0]);
+  });
+  it('is dirty only when something really differs, and changing then reverting is not a change', () => {
+    const base = withItems('Push', 2);
+    expect(isDirty(base, base)).toBe(false);
+    expect(isDirty({ ...base, name: 'Push day' }, base)).toBe(true);
+    expect(isDirty({ ...base, notes: 'x' }, base)).toBe(true);
+    expect(isDirty(updateItem(base, 1, { sets: '4' }), base)).toBe(true);
+    expect(isDirty(updateItem(updateItem(base, 1, { sets: '4' }), 1, { sets: '3' }), base)).toBe(false);
+    expect(isDirty(moveItem(base, 1, 1), base)).toBe(true);
+    expect(isDirty(removeItem(base, 2), base)).toBe(true);
+    expect(isDirty(addExercise(base, strength(9)), base)).toBe(true);
+    // the same rows with different internal keys are the same workout
+    const rekeyed = { ...base, items: base.items.map((i) => ({ ...i, key: i.key + 10 })) };
+    expect(isDirty(rekeyed, base)).toBe(false);
   });
 });

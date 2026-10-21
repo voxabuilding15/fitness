@@ -404,6 +404,18 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **Tested (Node, mocks):** the mapping and its edge cases (including that the unmapped areas flag nothing across the whole library, and a mutation check), the picker order, each screen's hints and limits in English and Arabic, and the Profile coverage text. **Not verified on a device:** layout, screen-reader output, RTL. The Arabic wording is mine and needs a native speaker's review.
 
+## 5n. Phase 4 - milestone 4.8: workout creation and editing UX
+
+**What changed (no data, schema or repository change).** In the workout builder (`TemplateFormScreen`):
+- **Choosing exercises.** The picker can be narrowed by muscle and equipment as well as by name (the same `LibraryFilter` the library uses; "Clear filters" also clears the search text), shows how many exercises match, and marks an exercise already in the workout ("Already added: N" - it can still be added again). It lists up to 100 matches.
+- **Ordering.** Besides up/down, a workout with more than four exercises gets "Move to top" and "Move to bottom" per row (`moveItemTo`); every move is announced with the new position.
+- **Validation.** Nothing is shown on a fresh form. After the first Save attempt the problems are recomputed from the current draft on every change, so each disappears the moment it is fixed (no stale errors). A "Fix these before saving" card lists every problem by name ("Workout name", "Exercises", "Pull-up, Sets") with the reason; fields keep their inline messages and the first failure is still announced.
+- **Unsaved changes.** Cancel leaves immediately when nothing changed, or when a change was undone (`isDirty` compares name, notes and the rows' exercises and numbers, ignoring internal row keys); with real unsaved changes it asks "Discard your changes?" (discard / keep editing). A successful save never asks. The header's back button is not intercepted.
+
+Saved workouts, the session flow, history and immutability are untouched; the save path (`planTemplateSave` -> `templates.create/update`) is unchanged.
+
+**Tested (Node, mocks):** the new pure helpers, and the builder: live error clearing (name, exercises, a row's number, duplicate name), cancel behaviour (clean, reverted, dirty, edit mode, after save), picker filters and counts, the already-added mark, move to top/bottom and Arabic. **Not verified on a device:** layout, keyboard behaviour, screen-reader output, RTL.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a

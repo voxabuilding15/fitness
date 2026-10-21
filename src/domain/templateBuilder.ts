@@ -70,6 +70,28 @@ export function moveItem(d: TemplateDraft, key: number, delta: -1 | 1): Template
   [items[from], items[to]] = [items[to], items[from]];
   return { ...d, items };
 }
+/** Moves a row to the very top or bottom. Already there (or unknown row): nothing changes. */
+export function moveItemTo(d: TemplateDraft, key: number, where: 'top' | 'bottom'): TemplateDraft {
+  const from = d.items.findIndex((i) => i.key === key);
+  const to = where === 'top' ? 0 : d.items.length - 1;
+  if (from < 0 || from === to) return d;
+  const items = d.items.filter((i) => i.key !== key);
+  items.splice(to, 0, d.items[from]);
+  return { ...d, items };
+}
+
+/** How many rows use this exercise (an exercise may be added more than once). */
+export const countOf = (d: TemplateDraft, exerciseId: number) => d.items.filter((i) => i.exerciseId === exerciseId).length;
+
+/**
+ * True when the draft differs from what it started as: name, notes, or any row's exercise or numbers, in order. Changing
+ * something and changing it back is not a change. Row keys are ignored (they are only identities inside one draft).
+ */
+export function isDirty(current: TemplateDraft, initial: TemplateDraft): boolean {
+  const rows = (x: TemplateDraft) => x.items.map(({ key: _key, ...rest }) => rest);
+  return current.name !== initial.name || current.notes !== initial.notes || JSON.stringify(rows(current)) !== JSON.stringify(rows(initial));
+}
+
 export const updateItem = (d: TemplateDraft, key: number, patch: Partial<Pick<DraftItem, ItemField>>): TemplateDraft => ({
   ...d, items: d.items.map((i) => (i.key === key ? { ...i, ...patch } : i)),
 });

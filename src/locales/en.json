@@ -556,7 +556,16 @@
     "deleted": "Workout deleted.",
     "summaryReps": "{{sets}} × {{reps}} · rest {{rest}} s",
     "summaryDuration": "{{sets}} × {{seconds}} s · rest {{rest}} s",
-    "repsRange": "{{min}}–{{max}}"
+    "repsRange": "{{min}}–{{max}}",
+    "fixTitle": "Fix these before saving",
+    "pickerCount": "Matches: {{count}}",
+    "alreadyAdded": "Already added: {{count}}",
+    "moveTop": "Move to top",
+    "moveBottom": "Move to bottom",
+    "discardTitle": "Discard your changes?",
+    "discardBody": "You have changes that are not saved.",
+    "discardYes": "Yes, discard",
+    "keepEditing": "Keep editing"
   },
   "exercises": {
     "pushUp": "Push-up", "inclinePushUp": "Incline push-up", "diamondPushUp": "Diamond push-up",
