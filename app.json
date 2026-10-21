@@ -7,18 +7,35 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "plugins": ["expo-router", "expo-font"],
-    "ios": { "supportsTablet": false, "bundleIdentifier": "com.example.fitness" },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#023C3E"
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.fitness"
+    },
     "android": {
       "package": "com.example.fitness",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#023C3E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": { "bundler": "metro", "favicon": "./assets/favicon.png" }
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    }
   }
 }
