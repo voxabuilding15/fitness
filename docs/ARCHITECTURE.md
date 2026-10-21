@@ -33,7 +33,7 @@ src/domain/        Pure TypeScript. Result/AppError, Clock, dates, session lifec
                    entity models and the repository interfaces (domain/repositories.ts).
 src/db/            sqlDatabase.ts (SqlDriver interface) · database.ts (single connection, FIFO lock, transactions,
                    foreign-key assertion) · mapDbError.ts · migrations/ (001-007 + runner) · backup.ts / expoBackup.ts ·
-                   repositories/ (9 implementations) · seedRunner.ts (mechanism only, no content) · legacyImport.ts
+                   repositories/ (9 implementations) · seedRunner.ts (applies a versioned pack; the 68-exercise pack lives in src/data/exerciseLibrary.ts) · seedStartup.ts · legacyImport.ts
                    (one-time import of the old AsyncStorage profile, run by legacyStartup.ts when the database is ready) · initDatabase.ts · expoSqliteDriver.ts · appDatabase(.web).ts
 src/db/testing/    TEST-ONLY: node:sqlite driver, file backup strategy, test helpers. Never imported by app code.
 src/context/DatabaseContext.tsx   Starts the database in the background; never blocks or breaks the app.
@@ -302,6 +302,18 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
   against real AsyncStorage data on a device, and the screens on a device or simulator have not been run.
 
 ---
+
+## 5e. Phase 3 - milestone 3.1: the exercise library
+
+**What it is.** A searchable, bilingual library of 68 original built-in exercises plus the person's own, reachable from the Workouts tab (`/exercises`, `/exercises/[id]`, `/exercises/form`). No migration: it uses the `exercises` table of migration 002 and the existing seed runner.
+
+**Seeding.** `src/data/exerciseLibrary.ts` is the single list (ids such as `benchPress`, slugs `bench_press`). `createAppDatabase` now runs `legacy.run` then `seed.run` (`db/seedStartup.ts`: single-flight, remembers its result, retries after a transient failure). A seed failure never makes the database unavailable; the library just shows what is there. Built-in rows hold no name: the displayed name is the translation `exercises.<camelCase slug>` in `en.json` / `ar.json` (the 32 demo-workout exercises share these keys). Built-in rows are immutable (delete is blocked by a trigger) but can be hidden (`is_archived`); a later pack version updates by slug and never removes content, un-hides anything or touches custom exercises. No MET values, instructions or images are shipped on purpose (nothing unverified or copied).
+
+**Search and duplicates** run on the displayed name in memory (`domain/exerciseLibrary.ts`): case, Arabic diacritics/tatweel, alef/yaa/taa-marbuta variants and punctuation are normalised. SQL `LIKE` cannot be used because built-in names are not in the database.
+
+**Custom exercises.** Create, edit, hide, delete (blocked with a clear message while a template or session uses it) and "Duplicate as my own" for built-ins. Nothing is preselected in the form; the main muscle cannot also be a secondary one (max 5). Final validation is the shared `exerciseInput` schema.
+
+**Tested:** domain logic, library data integrity (translations in both languages, demo workouts' ids all present), seed startup, and the three screens against Node SQLite. **Not verified on a device:** native SQLite seeding, screen-reader output, RTL layout, keyboard behaviour. The Arabic exercise names and UI strings were written for this milestone and need review by a native speaker.
 
 ## 6. Open product decisions and future work (documented, not changed)
 
