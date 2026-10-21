@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: ['feature/**', 'test/**']
+  pull_request:
+
+# Cancel superseded runs of the same ref
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, lint, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (lockfile must be in sync)
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tests with coverage (informational, no threshold)
+        run: npm run test:ci
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: node_modules/.cache/coverage
+          if-no-files-found: warn
+
+  ios-bundle:
+    name: iOS bundle export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Export iOS (Hermes) bundle
+        run: npm run export:ios
+
+  expo-doctor:
+    name: expo-doctor (non-blocking)
+    runs-on: ubuntu-latest
+    # Non-blocking ONLY because expo-doctor calls Expo/React Native Directory servers and has
+    # failed in restricted-network environments (see docs/ARCHITECTURE.md, "CI limitations").
+    # Its failures are still shown: the job turns yellow/red in the run, it just does not block merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: expo-doctor
+        run: npx expo-doctor

@@ -19,6 +19,17 @@ npm run lint        # expo lint
 npm test            # jest (logic, locales, validation, persistence)
 ```
 
+## Development checks
+
+```bash
+npm run check      # typecheck + lint + tests
+npm run test:ci    # tests with an (informational) coverage report in node_modules/.cache/coverage
+npm run export:ios # verifies an iOS bundle builds
+```
+
+Requires Node `^20.19.4 || ^22.13.0 || ^24.3.0` (see `.nvmrc`). CI is described in
+`docs/ARCHITECTURE.md`, which also separates the current architecture from the planned one.
+
 ## Structure
 
 ```
