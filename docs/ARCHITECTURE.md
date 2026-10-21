@@ -315,6 +315,16 @@ pure and tested in `src/domain/goalsDraft.ts`; the screen only renders it and ca
 
 **Tested:** domain logic, library data integrity (translations in both languages, demo workouts' ids all present), seed startup, and the three screens against Node SQLite. **Not verified on a device:** native SQLite seeding, screen-reader output, RTL layout, keyboard behaviour. The Arabic exercise names and UI strings were written for this milestone and need review by a native speaker.
 
+## 5f. Phase 3 - milestone 3.2: the workout builder (templates)
+
+**What it is.** "My workouts" on the Workouts tab (`/templates`, `/templates/[id]`, `/templates/form`): build a named workout from library exercises, with sets, a rep range (or seconds for timed exercises) and rest per exercise; reorder, remove, save, reopen, edit, duplicate and delete. No migration: it uses `workout_templates` / `template_exercises` (migration 002) and the existing `TemplateRepository`, whose create/update/duplicate are single transactions (an update rewrites the rows and rolls back whole on failure).
+
+**Layering.** `domain/templateBuilder.ts` is pure: a draft keeps every number as typed text; operations add/move/remove/update rows; `planTemplateSave` validates (name required and at most 60 characters, no other workout with the same name after normalisation, at least one and at most 30 exercises, whole numbers within the schema ranges, max reps not below min) and then runs the shared `templateInput` schema. `hooks/useTemplates.ts` reads templates and exercises together on focus and reports any failed read as `failed`, never as an empty list; the builder shows no form and no Save button unless that read succeeded, so a failed read can never be followed by a write over unread data. Hidden exercises stay in templates that use them (they can't be deleted while used) and are left out of the picker.
+
+**Decisions.** Workout names must be unique (checked in the app; the table has no UNIQUE constraint and none was added). "Duplicate" picks a free name from a fresh read ("X (copy)", "X (copy 2)"). The same exercise may appear twice in a workout. The seconds field is used for timed exercises, reps for the others. Starting targets (3 sets, 8-12 reps or 30 s, 60 s rest) are ordinary defaults the person edits. Deleting a workout keeps completed sessions (their `template_id` becomes NULL) and all exercises. The demo workouts on the Workouts tab are still static; starting a session from a template is a later milestone.
+
+**Tested:** domain logic, repository behaviour including close/reopen of a real database file (five-exercise workout keeps order and targets), and the three screens against Node SQLite in English and Arabic. **Not verified on a device:** native SQLite, screen-reader output, RTL layout, keyboard behaviour with many rows, touch reordering. Arabic strings need review by a native speaker; the Arabic term for a workout ("حصة") is my choice.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a

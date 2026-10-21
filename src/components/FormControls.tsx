@@ -8,16 +8,21 @@ import { colors, radius } from '../theme';
 
 /** A labelled text input. An error is shown under it AND exposed as the input's accessibility hint. */
 export function TextField({
-  label, value, onChange, error, keyboardType, maxLength,
-}: { label: string; value: string; onChange: (v: string) => void; error?: string; keyboardType?: KeyboardTypeOptions; maxLength?: number }) {
+  label, value, onChange, error, keyboardType, maxLength, a11yLabel, multiline,
+}: {
+  label: string; value: string; onChange: (v: string) => void; error?: string; keyboardType?: KeyboardTypeOptions; maxLength?: number;
+  /** Spoken name when several fields share the same visible label (for example one "Sets" per exercise row). */
+  a11yLabel?: string; multiline?: boolean;
+}) {
   const { t } = useTranslation();
   const { isRTL } = useApp();
   return (
     <View style={styles.field}>
       <AppText size={12} color={colors.muted}>{label}</AppText>
       <TextInput
-        accessibilityLabel={label}
+        accessibilityLabel={a11yLabel ?? label}
         accessibilityHint={error ? t(error) : undefined}
+        multiline={multiline}
         value={value}
         onChangeText={onChange}
         keyboardType={keyboardType}
