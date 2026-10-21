@@ -1,15 +1,16 @@
 {
   "expo": {
-    "name": "tpl",
-    "slug": "tpl",
+    "name": "Fitness",
+    "slug": "fitness-app",
+    "scheme": "fitness",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
+    "plugins": ["expo-router", "expo-font"],
+    "ios": { "supportsTablet": false, "bundleIdentifier": "com.example.fitness" },
     "android": {
+      "package": "com.example.fitness",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -18,8 +19,6 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "web": { "bundler": "metro", "favicon": "./assets/favicon.png" }
   }
 }
