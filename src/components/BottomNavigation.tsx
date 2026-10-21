@@ -19,7 +19,7 @@ const ITEMS: { route: string; icon: IconName; labelKey: string }[] = [
 ];
 
 /** Floating dark-teal pill with round white buttons; the active one expands to show its label. */
-export function BottomNavigation({ state, navigateToTab }: BottomTabBarProps) {
+export function BottomNavigation({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const narrow = useIsNarrow();
@@ -40,8 +40,7 @@ export function BottomNavigation({ state, navigateToTab }: BottomTabBarProps) {
               accessibilityLabel={label}
               onPress={() => {
                 playSound('tap');
-                const target = state.routes.find((r) => r.name === item.route);
-                if (!focused && target) navigateToTab(target.key);
+                if (!focused) navigation.navigate(item.route);
               }}
               style={({ pressed }) => [styles.item, { height: size, borderRadius: size / 2 }, focused ? styles.itemActive : { width: size }, pressed && styles.pressed]}
             >

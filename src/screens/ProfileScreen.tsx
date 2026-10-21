@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader } from '../components/AppHeader';
@@ -28,7 +28,7 @@ type Panel = 'experience' | 'caution' | 'language' | null;
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { profile, settings, updateProfile, updateSettings, setLanguage } = useApp();
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfileDraft>(toDraft(profile));
   const [errors, setErrors] = useState<ProfileErrors>({});

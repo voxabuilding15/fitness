@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, type ScrollViewInstance, type StyleProp, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, NAV_HEIGHT } from '../theme';
@@ -9,7 +9,7 @@ interface Props {
   /** reserve space for the floating bottom navigation */
   withNav?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
-  scrollRef?: React.RefObject<ScrollViewInstance | null>;
+  scrollRef?: React.RefObject<ScrollView | null>;
 }
 
 /** Gradient background + safe-area aware scrolling container shared by every screen. */
