@@ -38,12 +38,12 @@ export function WorkoutCard({ workout, onPlay }: Props) {
         <AppText size={13} color={colors.muted}>{t('home.exercisesCount', { count: workout.exercises.length })}</AppText>
         <View style={styles.chips}>
           <View style={styles.chip}>
-            <Icon name="flame" size={14} color={colors.accent} />
-            <AppText size={12} weight="medium" color={colors.ink}>{t('home.calChip', { value: workout.estimatedCalories })}</AppText>
+            <Icon name="flame" size={13} color={colors.accent} />
+            <AppText size={11} weight="medium" color={colors.ink}>{t('home.calChip', { value: workout.estimatedCalories })}</AppText>
           </View>
           <View style={styles.chip}>
-            <Icon name="timer-outline" size={14} color={colors.dark} />
-            <AppText size={12} weight="medium" color={colors.ink}>{t('home.minChip', { value: workout.estimatedMinutes })}</AppText>
+            <Icon name="timer-outline" size={13} color={colors.dark} />
+            <AppText size={11} weight="medium" color={colors.ink}>{t('home.minChip', { value: workout.estimatedMinutes })}</AppText>
           </View>
         </View>
       </View>
@@ -72,12 +72,12 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.9 },
   art: { position: 'absolute', bottom: -8 },
-  info: { maxWidth: '60%', gap: 4 },
+  info: { maxWidth: '68%', gap: 4 },
   title: { lineHeight: 26 },
-  chips: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  chips: { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
   chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.white,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill,
+    flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.white,
+    paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.pill,
   },
   play: {
     position: 'absolute', bottom: 14, width: 40, height: 40, borderRadius: 20,

@@ -153,7 +153,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.gap}>
-            <SectionHeader title={t('home.todaysWorkout')} action={t('common.viewMore')} onAction={() => router.navigate('/workouts')} />
+            <SectionHeader title={t('home.todaysWorkout')} action={t('home.workoutViewMore')} onAction={() => router.navigate('/workouts')} />
             <WorkoutCard workout={todayWorkout} onPlay={() => router.push({ pathname: '/workout/[id]', params: { id: todayWorkout.id } })} />
           </View>
         </>
