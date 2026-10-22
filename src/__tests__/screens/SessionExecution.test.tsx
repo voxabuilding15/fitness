@@ -5,7 +5,7 @@
  * native driver, NOT screen-reader output on a device and NOT the visual layout.
  */
 import React from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, BackHandler } from 'react-native';
 import { SEED_PACK } from '../../data/exerciseLibrary';
 import { runSeed } from '../../db/seedRunner';
 import { createRepoEnv, unwrap, type RepoEnv } from '../../db/testing/repoEnv';
@@ -44,7 +44,8 @@ jest.mock('expo-router', () => {
 });
 jest.mock('../../services/soundService', () => ({ playSound: jest.fn() }));
 jest.mock('../../components/Screen', () => ({ Screen: (props: { children: unknown }) => props.children }));
-jest.mock('../../components/AppHeader', () => ({ AppHeader: () => null, goBack: () => mockGoBack() }));
+let mockHeaderBack: (() => void) | undefined;
+jest.mock('../../components/AppHeader', () => ({ AppHeader: ({ onBack }: { onBack?: () => void }) => { mockHeaderBack = onBack; return null; }, goBack: () => mockGoBack() }));
 jest.mock('../../components/Icon', () => ({ Icon: () => null }));
 
 jest.setTimeout(30_000);
@@ -77,7 +78,10 @@ const press = async (nodes: any[]) => {
   await act(async () => { await node.props.onPress(); });
   await flush();
 };
+const rowNames = (): string[] => allText().filter((x: string) => /^\d+\. /.test(x));
 const BENCH = 'Barbell bench press';
+/** makes exercise number `position` the one shown in full (the chips above the exercise) */
+const focusExercise = async (position: number) => press([pressables((n) => n.props.accessibilityRole === 'tab')[position - 1]]);
 const logLabel = (name: string, n: number) => `${ls.logSet}: ${name}, Set ${n}`;
 const dbSets = async () => (await env.db.all('SELECT * FROM session_sets ORDER BY session_exercise_id, set_number')) as any[];
 
@@ -108,6 +112,7 @@ beforeEach(async () => {
   mockParams = {};
   mockLocale = 'en';
   mockNow = 1_000_000;
+  mockHeaderBack = undefined;
   mockPush.mockReset();
   mockGoBack.mockClear();
   announced = [];
@@ -144,7 +149,7 @@ describe('logging sets', () => {
     act(() => tree.unmount());
     await mount();
     expect(has('Set 1: 80 kg × 8')).toBe(true);
-    expect(has(ls.noSets)).toBe(true); // the other exercises have none
+    expect(has('Sets 0 of 2')).toBe(true); // the other exercises are listed with their progress
   });
 
   it('rejects empty, negative, non-finite and impossible values and writes nothing', async () => {
@@ -164,16 +169,20 @@ describe('logging sets', () => {
   it('a timed exercise takes seconds, and a distance exercise takes kilometres and minutes', async () => {
     await makeSession();
     await mount();
+    await focusExercise(2);
     await type(`${ls.durationSec}, Plank`, '45');
     await press(byLabel(logLabel('Plank', 1)));
+    expect(has('Set 1: 45 s')).toBe(true);
+    await focusExercise(3);
     await type(`${ls.distanceKm}, Running`, '5');
     await type(`${ls.durationMin}, Running`, '20');
     await press(byLabel(logLabel('Running', 1)));
     const rows = await dbSets();
     expect(rows[0]).toMatchObject({ duration_sec: 45, reps: null, weight_kg: null });
     expect(rows[1]).toMatchObject({ distance_m: 5000, duration_sec: 1200 });
-    expect(has('Set 1: 45 s')).toBe(true);
     expect(has('Set 1: 5 km in 20 min')).toBe(true);
+    await focusExercise(2);
+    expect(has('Set 1: 45 s')).toBe(true); // moving between exercises keeps what was logged
   });
 
   it('two taps in one moment save one set', async () => {
@@ -249,8 +258,12 @@ describe('rest timer', () => {
   it('starts from the exercise\'s recorded rest, counts down, is skipped, and never touches saved sets', async () => {
     await makeSession();
     await mount();
+    expect(byText('Start rest (60 s)')).toHaveLength(1); // the exercise shown
+    await focusExercise(2);
     expect(byText('Start rest (30 s)')).toHaveLength(1);
+    await focusExercise(3);
     expect(byText('Start rest (0 s)')).toHaveLength(0); // running has a rest of 0: no button
+    await focusExercise(1);
     await press(byLabel(`Start rest (60 s), ${BENCH}`));
     expect(has('1:00')).toBe(true);
     expect(announced).toContain('Rest started. Seconds: 60.');
@@ -278,6 +291,7 @@ describe('rest timer', () => {
   it('ends by itself, says so once, and can be stopped', async () => {
     await makeSession();
     await mount();
+    await focusExercise(2);
     await press(byLabel('Start rest (30 s), Plank'));
     await tick(31_000);
     expect(has(ls.restOver)).toBe(true);
@@ -312,6 +326,7 @@ describe('finishing', () => {
     await mount();
     await logBench('80', '8');
     await logBench('82,5', '6');
+    await focusExercise(2);
     await type(`${ls.durationSec}, Plank`, '45');
     await press(byLabel(logLabel('Plank', 1)));
     mockNow += 60_000;
@@ -431,6 +446,194 @@ describe('discarding', () => {
     expect(byText(ls.finish)).toHaveLength(0);
     expect(byText(ls.discard)).toHaveLength(0);
     expect(tree.root.findAll((n: any) => typeof n.props.onChangeText === 'function')).toHaveLength(0);
+  });
+});
+
+describe('progress and moving between exercises', () => {
+  const tabs = () => pressables((n) => n.props.accessibilityRole === 'tab');
+  const shownFields = (): string[] => tree.root.findAll((n: any) => typeof n.props.onChangeText === 'function').map((n: any) => n.props.accessibilityLabel as string);
+
+  it('shows sets and exercises done so far against the plan', async () => {
+    await makeSession();
+    await mount();
+    expect(has('Sets: 0 of 6')).toBe(true);
+    expect(has('Exercises done: 0 of 3')).toBe(true);
+    await logBench();
+    expect(has('Sets: 1 of 6')).toBe(true);
+    await logBench('80', '7');
+    await logBench('80', '6');
+    expect(has('Sets: 3 of 6')).toBe(true);
+    expect(has('Exercises done: 1 of 3')).toBe(true);
+    expect(has(ls.plannedDone)).toBe(true);
+    expect(tabs()[0].props.accessibilityLabel).toContain('done');
+    expect(tabs()[1].props.accessibilityLabel).toBe('Exercise 2 of 3: Plank, Sets 0 of 2');
+  });
+
+  it('only the current exercise is shown in full; the others are one line with their progress; choosing one shows it', async () => {
+    await makeSession();
+    await mount();
+    expect(shownFields().every((f) => f.endsWith(BENCH))).toBe(true);
+    expect(has('2. Plank')).toBe(true); // listed
+    await focusExercise(2);
+    expect(shownFields().every((f) => f.endsWith('Plank'))).toBe(true);
+    expect(announced).toContain('Exercise 2 of 3: Plank');
+    expect(tabs()[1].props.accessibilityState.selected).toBe(true);
+  });
+
+  it('moving away and back keeps logged sets and the numbers typed but not yet logged', async () => {
+    await makeSession();
+    await mount();
+    await logBench('80', '8');
+    await type(`${ls.reps}, ${BENCH}`, '11'); // typed, not logged
+    await focusExercise(2);
+    await focusExercise(1);
+    expect(input(`${ls.reps}, ${BENCH}`).props.value).toBe('11');
+    expect(has('Set 1: 80 kg × 8')).toBe(true);
+    expect(await dbSets()).toHaveLength(1);
+  });
+
+  it('Previous and Next move one exercise at a time and are disabled at the ends', async () => {
+    await makeSession();
+    await mount();
+    const nav = (label: string) => tree.root.findAll((n: any) => typeof n.props.onPress === 'function' && textOf(n) === label)[0];
+    expect(nav(ls.prevExercise).props.disabled).toBe(true);
+    await press([nav(ls.nextExercise)]);
+    await press([nav(ls.nextExercise)]);
+    expect(shownFields().every((f) => f.includes('Running'))).toBe(true);
+    expect(nav(ls.nextExercise).props.disabled).toBe(true);
+    await press([nav(ls.prevExercise)]);
+    expect(shownFields().every((f) => f.endsWith('Plank'))).toBe(true);
+  });
+
+  it('a resumed workout opens on the first unfinished exercise', async () => {
+    await makeSession();
+    await mount();
+    for (const r of ['8', '7', '6']) await logBench('80', r);
+    act(() => tree.unmount());
+    await mount();
+    expect(shownFields().every((f) => f.endsWith('Plank'))).toBe(true);
+  });
+
+  it('a workout without a recorded plan shows a count but no total and no bar', async () => {
+    const s = await makeSession();
+    await env.db.exec('DROP TRIGGER session_exercises_plan_immutable');
+    await env.db.run('UPDATE session_exercises SET plan_captured=0, plan_sets=NULL, plan_rest_sec=NULL, plan_reps_min=NULL, plan_reps_max=NULL, plan_duration_sec=NULL WHERE session_id=?', [s.id]);
+    await mount();
+    await logBench();
+    expect(has('Sets logged: 1')).toBe(true);
+    expect(has('Sets: 1 of')).toBe(false);
+    expect(has(ls.plannedDone)).toBe(false); // nothing to be "done" against
+  });
+
+  it('a finished workout shows every exercise in full and no navigation', async () => {
+    await makeSession();
+    await mount();
+    await logBench();
+    await press(byText(ls.finish));
+    await press(byText(ls.finishYes));
+    expect(tabs()).toHaveLength(0);
+    expect(rowNames()).toEqual(['1. Barbell bench press', '2. Plank', '3. Running']);
+    expect(has(ls.prevExercise)).toBe(false);
+  });
+});
+
+describe('rest timer state and controls', () => {
+  const tick = async (ms: number) => { mockNow += ms; await act(async () => { await new Promise((r) => setTimeout(r, 300)); }); };
+
+  it('says whom the rest is for, shows the time and a progress bar, and can be extended by 15 seconds', async () => {
+    await makeSession();
+    await mount();
+    await press(byLabel(`Start rest (60 s), ${BENCH}`));
+    expect(has(`Resting: ${BENCH}`)).toBe(true);
+    await tick(3000);
+    expect(has('0:57')).toBe(true);
+    await press(byLabel(ls.restAddLabel));
+    expect(has('1:12')).toBe(true);
+    expect(announced).toContain('Rest extended. Time left: 1:12.');
+    expect(await dbSets()).toEqual([]); // the timer never writes anything
+  });
+
+  it('keeps running while another exercise is shown, and offers Skip and Stop only as long as they make sense', async () => {
+    await makeSession();
+    await mount();
+    await press(byLabel(`Start rest (60 s), ${BENCH}`));
+    await focusExercise(2);
+    expect(has(`Resting: ${BENCH}`)).toBe(true);
+    await tick(61_000);
+    expect(has(ls.restOver)).toBe(true);
+    expect(pressables((n) => n.props.accessibilityLabel === ls.restAddLabel)).toHaveLength(0); // an ended rest is not extended
+    expect(byText(ls.restSkip)).toHaveLength(0);
+    await press(byText(ls.restStop));
+    expect(has(ls.restOver)).toBe(false);
+  });
+
+  it('the timer stops when the workout is finished', async () => {
+    await makeSession();
+    await mount();
+    await logBench();
+    await press(byLabel(`Start rest (60 s), ${BENCH}`));
+    await press(byText(ls.finish));
+    await press(byText(ls.finishYes));
+    expect(has('Resting:')).toBe(false);
+  });
+});
+
+describe('leaving the screen', () => {
+  it('with nothing typed, going back is not intercepted', async () => {
+    await makeSession();
+    const add = jest.spyOn(BackHandler, 'addEventListener');
+    await mount();
+    expect(mockHeaderBack).toBeUndefined();
+    expect(add).not.toHaveBeenCalledWith('hardwareBackPress', expect.anything());
+  });
+
+  it('with numbers typed but not logged, the back button asks first; Stay keeps them, Leave goes back; logged sets are safe either way', async () => {
+    await makeSession();
+    await mount();
+    await logBench('80', '8');
+    await type(`${ls.reps}, ${BENCH}`, '12');
+    expect(mockHeaderBack).toBeDefined();
+    await act(async () => { mockHeaderBack!(); });
+    await flush();
+    expect(has(ls.leaveTitle)).toBe(true);
+    expect(has(ls.leaveBody)).toBe(true);
+    expect(mockGoBack).not.toHaveBeenCalled();
+    await press(byText(ls.leaveStay));
+    expect(has(ls.leaveTitle)).toBe(false);
+    expect(input(`${ls.reps}, ${BENCH}`).props.value).toBe('12');
+    await act(async () => { mockHeaderBack!(); });
+    await flush();
+    await press(byText(ls.leaveYes));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    expect(await dbSets()).toHaveLength(1); // nothing logged was lost
+    expect(unwrap(await env.repos.sessions.getActive())).not.toBeNull(); // and the workout is still in progress
+  });
+
+  it('the Android back button is intercepted the same way, only while there is something to lose', async () => {
+    await makeSession();
+    let handler: (() => boolean) | undefined;
+    const remove = jest.fn();
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_: string, h: () => boolean) => { handler = h; return { remove }; }) as never);
+    await mount();
+    expect(handler).toBeUndefined();
+    await type(`${ls.reps}, ${BENCH}`, '9');
+    expect(handler).toBeDefined();
+    let result: boolean | undefined;
+    await act(async () => { result = handler!(); });
+    await flush();
+    expect(result).toBe(true); // handled: the screen stays and asks
+    expect(has(ls.leaveTitle)).toBe(true);
+  });
+
+  it('typing something and then clearing it back, or logging it, is no longer something to lose', async () => {
+    await makeSession();
+    await mount();
+    await type(`${ls.reps}, ${BENCH}`, '9');
+    expect(mockHeaderBack).toBeDefined();
+    await type(`${ls.reps}, ${BENCH}`, '');
+    expect(mockHeaderBack).toBeUndefined();
+    await logBench('80', '8');
+    expect(mockHeaderBack).toBeUndefined();
   });
 });
 

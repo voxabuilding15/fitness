@@ -11,6 +11,8 @@ type IconName = React.ComponentProps<typeof IconButton>['icon'];
 interface Props {
   title: string;
   right?: { icon: IconName; label: string; onPress: () => void };
+  /** Replaces the back button's action (for example to ask before leaving a screen with unsaved input). */
+  onBack?: () => void;
 }
 
 export function goBack() {
@@ -19,11 +21,11 @@ export function goBack() {
 }
 
 /** Back button · centered title · optional action — used by Statistics, Profile and detail screens. */
-export function AppHeader({ title, right }: Props) {
+export function AppHeader({ title, right, onBack }: Props) {
   const { t } = useTranslation();
   return (
     <View style={styles.row}>
-      <IconButton icon="arrow-back" label={t('common.back')} onPress={goBack} />
+      <IconButton icon="arrow-back" label={t('common.back')} onPress={onBack ?? goBack} />
       <AppText size={18} weight="medium" color={colors.onGradient} align="center" style={styles.title} numberOfLines={1}>
         {title}
       </AppText>

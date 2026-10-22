@@ -75,6 +75,12 @@ const press = async (label: string) => {
   await flush();
 };
 const rowNames = () => allText().filter((x: string) => /^\d+\. /.test(x));
+/** makes exercise number `position` the one shown in full */
+const focus = async (position: number) => {
+  const tab = tree.root.findAll((n: any) => typeof n.props.onPress === 'function' && n.props.accessibilityRole === 'tab')[position - 1]; // the numbered chips, in any language
+  await act(async () => { await tab.props.onPress(); });
+  await flush();
+};
 const sessionCount = async () => (await env.db.first<{ n: number }>('SELECT COUNT(*) n FROM workout_sessions'))!.n;
 
 const makeTemplate = async (name = 'Push day', slugs = ['bench_press', 'overhead_press', 'plank']) => {
@@ -238,6 +244,7 @@ describe('SessionScreen', () => {
     expect(has(ls.statusInProgress)).toBe(true);
     expect(rowNames()).toEqual(['1. Barbell bench press', '2. Barbell overhead press', '3. Plank']);
     expect(has('Planned: 3 × 8–12 · rest 60 s')).toBe(true);
+    await focus(3);
     expect(has('Planned: 2 × 45 s · rest 30 s')).toBe(true);
   });
 
@@ -260,6 +267,7 @@ describe('SessionScreen', () => {
     expect(rowNames()).toEqual(expected);
     expect(has('Push day')).toBe(true);
     expect(has('Planned: 3 × 8–12 · rest 60 s')).toBe(true);
+    await focus(3);
     expect(has('Planned: 2 × 45 s · rest 30 s')).toBe(true);
     expect(has('Planned: 9')).toBe(false);
     act(() => tree.unmount());
@@ -286,6 +294,7 @@ describe('SessionScreen', () => {
     mockParams = { id: String(s.id) };
     await mount(SessionScreen);
     expect(has('المخطط: 3 × 8–12 · راحة 60 ث')).toBe(true);
+    await focus(3);
     expect(has('المخطط: 2 × 45 ث · راحة 30 ث')).toBe(true);
   });
 

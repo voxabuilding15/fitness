@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, goBack } from '../components/AppHeader';
@@ -8,11 +8,13 @@ import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { SessionExerciseCard, fieldLabelKey, setSummary } from '../components/SessionExerciseCard';
+import { Bar, CompactExerciseRow, ExerciseStrip, ProgressCard } from '../components/SessionNavigation';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
 import type { Exercise, SessionExercise, WorkoutSessionDetail } from '../domain/models';
 import { formatClock } from '../domain/restTimer';
 import type { Result } from '../domain/result';
+import { exerciseProgress, firstOpenIndex, hasUnsavedInput, sessionProgress } from '../domain/sessionProgress';
 import { nextDraft, planSet, summarizeSession, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
 import { summarizeTargets } from '../domain/templateSummary';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
@@ -51,6 +53,8 @@ export default function SessionScreen() {
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [focusId, setFocusId] = useState<number | null>(null); // the exercise shown in full; null = the first unfinished one
+  const [leaveAsk, setLeaveAsk] = useState(false);
   const [message, setMessage] = useState<{ text: string; problem: boolean } | null>(null);
   // one write at a time: set synchronously so two taps in one frame can't both reach the database
   const lock = useRef(false);
@@ -105,6 +109,23 @@ export default function SessionScreen() {
     if (rest.timer.phase === 'done' && !spokenDone.current) announce(t('liveSession.restDone'));
     spokenDone.current = rest.timer.phase === 'done';
   }, [rest.timer.phase, t]);
+
+  // Typed-but-not-logged numbers are the only thing leaving can lose (logged sets are already saved; the timer is only a guide)
+  const dirtyInput = load.status === 'ready' && load.session.status === 'in_progress' && hasUnsavedInput(drafts, (rowId) => {
+    const se = load.session.exercises.find((e) => e.id === rowId);
+    if (!se) return null;
+    const tracking = load.exercises.find((e) => e.id === se.exerciseId)?.trackingType ?? 'reps_only';
+    return nextDraft(tracking, [...se.sets].reverse().find((s) => s.isCompleted));
+  });
+  useEffect(() => {
+    if (!dirtyInput) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setLeaveAsk(true);
+      announce(t('liveSession.leaveTitle'));
+      return true; // stay on the screen and ask
+    });
+    return () => sub.remove();
+  }, [dirtyInput, t]);
 
   if (status !== 'ready' || load.status !== 'ready') {
     const text = status === 'missing' ? t('liveSession.notFound') : status === 'unavailable' ? t('liveSession.unavailable') : status === 'failed' && load.status === 'failed' ? `${t('liveSession.readFailed')} ${t(errorMessageKey(load.error))}` : t('liveSession.loading');
@@ -172,6 +193,7 @@ export default function SessionScreen() {
       return announce(t('liveSession.needsAttention', { fields: `${nameFor(se)}: ${fields}` }));
     }
     setIssues((cur) => ({ ...cur, [se.id]: {} }));
+    setFocusId(se.id); // stay on this exercise after logging, even when it was the last planned set (moving on is the person's choice)
     void write(
       () => repos!.sessions.addSet(se.id, plan.value),
       (set) => {
@@ -204,11 +226,40 @@ export default function SessionScreen() {
 
   const timer = rest.timer;
   const restOwner = timer.phase === 'idle' ? null : session.exercises.find((e) => e.id === timer.exerciseKey);
+  const progress = sessionProgress(session.exercises);
+  const foundIdx = focusId === null ? -1 : session.exercises.findIndex((e) => e.id === focusId);
+  const focusedIdx = open ? (foundIdx >= 0 ? foundIdx : firstOpenIndex(session.exercises)) : -1;
+  const stripItems = session.exercises.map((e, i) => ({ id: e.id, position: e.position, name: nameFor(e), progress: exerciseProgress(e), active: i === focusedIdx }));
+  const goTo = (id: number) => {
+    const i = session.exercises.findIndex((e) => e.id === id);
+    if (i < 0) return;
+    setFocusId(id);
+    announce(t('liveSession.exerciseNav', { position: session.exercises[i].position, total: session.exercises.length, name: nameFor(session.exercises[i]) }));
+  };
   const statusKey = session.status === 'in_progress' ? 'statusInProgress' : session.status === 'completed' ? 'statusCompleted' : 'statusDiscarded';
 
   return (
     <Screen withNav={false} avoidKeyboard>
-      <AppHeader title={session.status === 'in_progress' ? t('liveSession.title') : session.name} />
+      <AppHeader
+        title={session.status === 'in_progress' ? t('liveSession.title') : session.name}
+        onBack={dirtyInput ? () => { setLeaveAsk(true); announce(t('liveSession.leaveTitle')); } : undefined}
+      />
+      {open && leaveAsk && dirtyInput ? (
+        <GlassCard strong style={styles.card}>
+          <View role="group" accessibilityLabel={t('liveSession.leaveTitle')} style={styles.restBody}>
+            <AppText size={14} weight="semibold" color={colors.ink} accessibilityRole="header">{t('liveSession.leaveTitle')}</AppText>
+            <AppText size={12} color={colors.muted}>{t('liveSession.leaveBody')}</AppText>
+            <View style={styles.row}>
+              <Pressable accessibilityRole="button" onPress={goBack} style={[styles.btn, styles.dangerBtn, styles.flex]}>
+                <AppText size={14} weight="medium" color={colors.white} align="center">{t('liveSession.leaveYes')}</AppText>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => setLeaveAsk(false)} style={[styles.btn, styles.ghost, styles.flex]}>
+                <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.leaveStay')}</AppText>
+              </Pressable>
+            </View>
+          </View>
+        </GlassCard>
+      ) : null}
       <GlassCard strong style={styles.card}>
         <AppText size={20} weight="semibold" color={colors.ink} accessibilityRole="header">{session.name}</AppText>
         <AppText size={12} color={colors.muted}>{`${t(`liveSession.${statusKey}`)} · ${t('liveSession.startedOn', { date: session.localDate })}`}</AppText>
@@ -234,15 +285,21 @@ export default function SessionScreen() {
       {open && rest.timer.phase !== 'idle' ? (
         <GlassCard strong style={styles.card}>
           <View role="group" accessibilityLabel={rest.timer.phase === 'done' ? t('liveSession.restOver') : t('liveSession.restRunning', { time: formatClock(rest.secondsLeft) })} style={styles.restBody}>
-            <AppText size={13} color={colors.muted}>{restOwner ? nameFor(restOwner) : ''}</AppText>
+            <AppText size={13} color={colors.muted}>{restOwner ? t('liveSession.restFor', { name: nameFor(restOwner) }) : ''}</AppText>
             <AppText size={28} weight="semibold" color={colors.ink} accessibilityLabel={rest.timer.phase === 'done' ? t('liveSession.restOver') : t('liveSession.restRunning', { time: formatClock(rest.secondsLeft) })}>
               {rest.timer.phase === 'done' ? t('liveSession.restOver') : formatClock(rest.secondsLeft)}
             </AppText>
+            <Bar ratio={rest.timer.phase === 'done' ? 1 : timer.phase === 'running' && timer.totalSec > 0 ? 1 - rest.secondsLeft / timer.totalSec : 0} tint={colors.accent} />
             <View style={styles.row}>
               {rest.timer.phase === 'running' ? (
-                <Pressable accessibilityRole="button" onPress={() => { rest.stop(); announce(t('liveSession.restSkipped')); }} style={[styles.btn, styles.primary, styles.flex]}>
-                  <AppText size={14} weight="medium" color={colors.white} align="center">{t('liveSession.restSkip')}</AppText>
-                </Pressable>
+                <>
+                  <Pressable accessibilityRole="button" accessibilityLabel={t('liveSession.restAddLabel')} onPress={() => { rest.extend(15); announce(t('liveSession.restExtended', { time: formatClock(rest.secondsLeft + 15) })); }} style={[styles.btn, styles.ghost, styles.flex]}>
+                    <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.restAdd')}</AppText>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => { rest.stop(); announce(t('liveSession.restSkipped')); }} style={[styles.btn, styles.primary, styles.flex]}>
+                    <AppText size={14} weight="medium" color={colors.white} align="center">{t('liveSession.restSkip')}</AppText>
+                  </Pressable>
+                </>
               ) : null}
               <Pressable accessibilityRole="button" onPress={() => { rest.stop(); announce(t('liveSession.restStopped')); }} style={[styles.btn, styles.ghost, styles.flex]}>
                 <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.restStop')}</AppText>
@@ -253,27 +310,44 @@ export default function SessionScreen() {
         </GlassCard>
       ) : null}
 
+      {open ? <ProgressCard progress={progress} /> : null}
+      {open && session.exercises.length > 1 ? <ExerciseStrip items={stripItems} onSelect={goTo} /> : null}
+
       <AppText size={16} weight="semibold" color={colors.onGradient} accessibilityRole="header">{t('liveSession.exercises')}</AppText>
-      {session.exercises.map((se) => {
+      {session.exercises.map((se, i) => {
+        // while the workout is running only the current exercise is shown in full; the others are one line each (their logged sets and typed numbers are kept)
+        if (open && i !== focusedIdx) return <CompactExerciseRow key={se.id} item={stripItems[i]} total={session.exercises.length} onSelect={goTo} />;
         const tracking = trackingOf(se);
         return (
-          <SessionExerciseCard
-            key={se.id}
-            position={se.position}
-            name={nameFor(se)}
-            tracking={tracking}
-            planned={se.plan ? summarizeTargets(t, se.plan) : null}
-            hints={byId.get(se.exerciseId) ? recs.notesOf(recs.assess(byId.get(se.exerciseId)!), false) : []}
-            sets={se.sets}
-            entry={open ? {
-              draft: draftFor(se), issues: issues[se.id] ?? {}, saving,
-              onChange: (field, value) => { setDrafts((cur) => ({ ...cur, [se.id]: { ...draftFor(se), [field]: value } })); setIssues((cur) => ({ ...cur, [se.id]: { ...cur[se.id], [field]: undefined } })); },
-              onLog: () => logSet(se),
-              confirmRemoveId, onAskRemove: setConfirmRemoveId, onRemove: removeSet,
-              restSec: se.plan && se.plan.restSec > 0 ? se.plan.restSec : null,
-              onStartRest: () => { rest.start(se.plan!.restSec, se.id); announce(t('liveSession.restStarted', { seconds: se.plan!.restSec })); },
-            } : null}
-          />
+          <React.Fragment key={se.id}>
+            <SessionExerciseCard
+              position={se.position}
+              name={nameFor(se)}
+              tracking={tracking}
+              planned={se.plan ? summarizeTargets(t, se.plan) : null}
+              hints={byId.get(se.exerciseId) ? recs.notesOf(recs.assess(byId.get(se.exerciseId)!), false) : []}
+              sets={se.sets}
+              entry={open ? {
+                draft: draftFor(se), issues: issues[se.id] ?? {}, saving,
+                onChange: (field, value) => { setDrafts((cur) => ({ ...cur, [se.id]: { ...draftFor(se), [field]: value } })); setIssues((cur) => ({ ...cur, [se.id]: { ...cur[se.id], [field]: undefined } })); },
+                onLog: () => logSet(se),
+                confirmRemoveId, onAskRemove: setConfirmRemoveId, onRemove: removeSet,
+                restSec: se.plan && se.plan.restSec > 0 ? se.plan.restSec : null,
+                onStartRest: () => { rest.start(se.plan!.restSec, se.id); announce(t('liveSession.restStarted', { seconds: se.plan!.restSec })); },
+              } : null}
+            />
+            {open && exerciseProgress(se).done ? <AppText size={12} color={colors.onGradientMuted}>{t('liveSession.plannedDone')}</AppText> : null}
+            {open && session.exercises.length > 1 ? (
+              <View style={styles.row}>
+                <Pressable accessibilityRole="button" accessibilityState={{ disabled: i === 0 }} disabled={i === 0} onPress={() => goTo(session.exercises[i - 1].id)} style={[styles.btn, styles.ghost, styles.flex, i === 0 && styles.dim]}>
+                  <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.prevExercise')}</AppText>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityState={{ disabled: i === session.exercises.length - 1 }} disabled={i === session.exercises.length - 1} onPress={() => goTo(session.exercises[i + 1].id)} style={[styles.btn, styles.ghost, styles.flex, i === session.exercises.length - 1 && styles.dim]}>
+                  <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.nextExercise')}</AppText>
+                </Pressable>
+              </View>
+            ) : null}
+          </React.Fragment>
         );
       })}
 

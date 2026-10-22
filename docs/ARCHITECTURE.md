@@ -424,6 +424,18 @@ Saved workouts, the session flow, history and immutability are untouched; the sa
 
 **Tested (Node, mocks):** the pure overview (ordering, duplicate exercises, unknown rows, empty) and the screen: counts, equipment and muscle lists, per-row details and accessibility label, Start and Edit (with hints; neither changes the saved workout), one real session created with the overview's exercises and sets, a hidden exercise still shown, and Arabic. **Not verified on a device:** layout, screen-reader output, RTL.
 
+## 5p. Phase 4 - milestone 4.10: the active workout session experience
+
+**What changed (no data, schema or repository change; `addSet`, `deleteSet`, `complete`, `discard` and the one-write lock are as before).** While a workout is in progress the session screen now has:
+- **Progress.** A card with "Sets: done of planned" and "Exercises done: x of n", and a bar. The planned total exists only when EVERY exercise has a recorded plan; otherwise it says "Sets logged: n" with no total or bar (`domain/sessionProgress.ts`). An exercise counts as done when its logged sets reach its plan; without a plan nothing is ever "done".
+- **Navigation.** One numbered chip per exercise (finished ones marked), Previous / Next buttons, and the other exercises as one-line rows with their progress; only the current exercise is shown in full. Moving between exercises never touches logged sets (they are in the database) or the numbers typed but not yet logged (kept per exercise in the screen). The first exercise shown, and after a resume, is the first unfinished one; after logging a set the screen stays on that exercise even when its plan is complete ("All planned sets are logged. Add more sets or move on."). A finished or discarded workout still shows every exercise in full with no navigation.
+- **Rest timer.** The panel says whom the rest is for ("Resting: ..."), shows the time and a progress bar, and offers "+15 s" (`extendRest`: only a running timer, never beyond 15 minutes left), Skip rest and Stop timer; an ended rest says so and can be dismissed but not extended. It keeps running while another exercise is shown, is stopped by finish or discard, is never saved, and never writes anything.
+- **Leaving.** Logged sets are saved the moment they are logged, so leaving never loses them and the workout stays in progress. What leaving CAN lose is numbers typed but not logged: if there are any (compared with what the form would show anyway), the screen's back button and the Android hardware back button ask "Leave this workout?" first (Stay / Leave). Not intercepted: the iOS swipe-back gesture and system-level exits, a rest timer running when you leave (it is only a guide), and an unsaved form on other screens.
+
+Finish and discard (with confirmations), resume from the Home / Workouts / detail screens and the immutability of completed sessions (migration 009) are unchanged.
+
+**Tested (Node, mocks):** the pure progress and timer helpers, and the screen: progress against the plan and without one, only the current exercise in full, switching keeps logged and typed values, Previous / Next limits, resume on the first unfinished exercise, the finished view, timer labels / extension / persistence across exercises / stop on finish, and leaving (header back and Android back, Stay / Leave, nothing to lose after clearing or logging). **Not verified on a device:** layout, the real Android hardware back button, iOS swipe-back, keyboard behaviour, timing while the app is in the background, screen-reader output, RTL.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a

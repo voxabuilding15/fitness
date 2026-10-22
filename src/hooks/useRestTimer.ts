@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { IDLE, remainingSec, startRest, tickRest, type RestTimer } from '../domain/restTimer';
+import { IDLE, extendRest, remainingSec, startRest, tickRest, type RestTimer } from '../domain/restTimer';
 
 /** Runs a `RestTimer` and re-renders once a second while it is running. `now` is read in handlers and the interval, never in render. */
 export function useRestTimer(nowFn: () => number = Date.now) {
@@ -22,5 +22,10 @@ export function useRestTimer(nowFn: () => number = Date.now) {
     setTimer(startRest(t, seconds, exerciseKey));
   }, [nowFn]);
   const stop = useCallback(() => setTimer(IDLE), []);
-  return { timer, secondsLeft: remainingSec(timer, now), start, stop };
+  const extend = useCallback((seconds: number) => {
+    const t = nowFn();
+    setNow(t);
+    setTimer((cur) => extendRest(cur, t, seconds));
+  }, [nowFn]);
+  return { timer, secondsLeft: remainingSec(timer, now), start, stop, extend };
 }
