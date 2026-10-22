@@ -637,6 +637,92 @@ describe('leaving the screen', () => {
   });
 });
 
+describe('reopening a workout with sets already logged', () => {
+  const T0 = Date.UTC(2026, 9, 21, 10, 0, 0);
+  const logTwoBench = async (s: { exercises: { id: number }[] }) => {
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+    env.clock.advance(60_000);
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+  };
+
+  it('a workout with nothing logged shows no "welcome back" note', async () => {
+    await makeSession();
+    mockNow = T0 + 5 * 60_000;
+    await mount();
+    expect(has(ls.resumedTitle)).toBe(false);
+  });
+
+  it('shows what is saved (sets, progress, place in the workout) and when the last set was logged, and says the rest timer is not kept', async () => {
+    const s = await makeSession();
+    await logTwoBench(s);
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true })); // bench is fully done; the next exercise is where the person left off
+    mockNow = env.clock.now() + 7 * 60_000;
+    await mount();
+    expect(has(ls.resumedTitle)).toBe(true);
+    expect(has('Last set logged: 7 min ago.')).toBe(true);
+    expect(has(ls.resumedTimer)).toBe(true);
+    expect(has('Sets: 3 of 6')).toBe(true);
+    expect(rowNames().some((n) => n.includes('Plank'))).toBe(true); // the first unfinished exercise is shown in full
+    expect(has(ls.restRunning.replace('{{time}}', ''))).toBe(false); // no timer is reconstructed
+    expect(has(ls.restOver)).toBe(false);
+  });
+
+  it('reads long gaps in hours and short ones as under a minute', async () => {
+    const s = await makeSession();
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+    mockNow = env.clock.now() + 65 * 60_000;
+    await mount();
+    expect(has('Last set logged: 1 h 5 min ago.')).toBe(true);
+    act(() => tree.unmount());
+    mockNow = env.clock.now() + 20_000;
+    await mount();
+    expect(has('Last set logged: less than a minute ago.')).toBe(true);
+  });
+
+  it('does not invent a time when the clock reads earlier than the saved set', async () => {
+    const s = await makeSession();
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+    mockNow = env.clock.now() - 3_600_000;
+    await mount();
+    expect(has(ls.resumedTitle)).toBe(true);
+    expect(allText().some((x: string) => x.includes('Last set logged'))).toBe(false);
+  });
+
+  it('goes away on "Got it" and when a new set is logged, and is never shown for a finished workout', async () => {
+    const s = await makeSession();
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+    mockNow = env.clock.now() + 60_000;
+    await mount();
+    await press(byText(ls.resumedDismiss));
+    expect(has(ls.resumedTitle)).toBe(false);
+    act(() => tree.unmount());
+    await mount();
+    expect(has(ls.resumedTitle)).toBe(true);
+    await type(`${ls.reps}, ${BENCH}`, '6');
+    await press(byLabel(logLabel(BENCH, 2)));
+    expect(has(ls.resumedTitle)).toBe(false);
+    await press(byText(ls.finish));
+    await press(byText(ls.finishYes));
+    act(() => tree.unmount());
+    await mount();
+    expect(has(ls.resumedTitle)).toBe(false);
+  });
+
+  it('typed-but-not-logged numbers are not kept across a reopening (only logged sets are), and logging continues from the saved set', async () => {
+    const s = await makeSession();
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { reps: 8, weightKg: 80, isCompleted: true }));
+    mockNow = env.clock.now() + 60_000;
+    await mount();
+    await type(`${ls.reps}, ${BENCH}`, '99');
+    act(() => tree.unmount());
+    await mount();
+    expect(input(`${ls.reps}, ${BENCH}`).props.value).toBe('8'); // prefilled from the saved set, not the lost 99
+    expect(mockHeaderBack).toBeUndefined();
+    await press(byLabel(logLabel(BENCH, 2)));
+    expect((await dbSets()).map((r) => r.set_number)).toEqual([1, 2]);
+  });
+});
+
 describe('wording', () => {
   it('no new English or Arabic string puts a number directly before a counted noun, so "1 sets" cannot occur', () => {
     const bad = /\{\{(count|done|total|reps|n)\}\}\s*(sets?|reps?|exercises?|workouts?|تكرار|مجموعة|مجموعات|تمارين|تمرين)/;

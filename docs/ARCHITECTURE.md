@@ -477,3 +477,17 @@ Finish and discard (with confirmations), resume from the Home / Workouts / detai
     been established. `zod/mini` is a functional API (`z.string().check(z.minLength(1))`, `z.safeParse(schema, v)`), so
     every schema, `.refine`, `.partial`, `.default` and the `parseInput` helper would change. Recommended only as a
     separate, reviewed change that measures the app export before and after and runs the full test suite; not done here.
+
+## 5q. Phase 4 - milestone 4.11: resilient active sessions
+
+What survives an app restart, and what does not, is decided by where the state lives.
+
+**Persisted (SQLite, written the moment it happens, each write in one transaction):** the session and its status, the plan snapshot, every logged set with its `completed_at`, set numbering. After the app is closed or killed `sessions.getActive()` returns the same workout and the Home / Workouts banners resume it. Progress ("Sets: x of y"), the exercise strip and the exercise shown in full are all *derived* from the saved sets (`firstOpenIndex`), so the place in the workout comes back without storing anything extra. A write that fails or is interrupted rolls back; a half-written set never appears. Completed sessions stay immutable and discarded ones stay frozen after any number of restarts. Covered by `__tests__/db/sessionRecovery.test.ts` (a real SQLite file closed and reopened).
+
+**Not persisted, on purpose:**
+- *The rest timer.* It is in-memory and starts from a button press. The database has no record that a rest was started, stopped, skipped or extended, so a rest end time cannot be reconstructed truthfully (the last set's `completed_at` plus the planned rest would be a guess: the rest may have been skipped or extended). Nothing is invented. Instead the reopened screen says so.
+- *Typed-but-not-logged numbers.* They are local drafts. The form is prefilled from the last saved set again.
+
+**Reopen note (`domain/sessionRecovery.ts`):** an in-progress session with logged sets shows a "Welcome back" note on opening, with "Last set logged: N min ago" taken from the newest saved `completed_at`, and the sentence that the rest timer does not carry over. If the device clock reads earlier than the saved time (a clock change) the duration line is left out rather than guessed. The note is read once per opening, so it does not turn into "just now" after a new set; it goes away on "Got it", on logging a set, or when a rest timer is running. The note also appears when the person leaves this screen and comes back in the same run, which is accurate: the timer is held by the screen.
+
+**Device-only, not verified here:** a real process kill on iOS/Android, background / foreground timing, the Expo SQLite native driver's durability under a kill, screen-reader output, layout and RTL. Arabic wording needs a native review.

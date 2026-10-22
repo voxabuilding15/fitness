@@ -416,7 +416,15 @@
     "leaveTitle": "Leave this workout?",
     "leaveBody": "Numbers you typed but haven't logged will be lost. Your logged sets are already saved, and the workout stays in progress.",
     "leaveYes": "Leave",
-    "leaveStay": "Stay"
+    "leaveStay": "Stay",
+    "resumedTitle": "Welcome back",
+    "resumedBody": "Your logged sets are saved and your place in the workout is kept.",
+    "resumedLast": "Last set logged: {{time}} ago.",
+    "resumedTimer": "The rest timer does not carry over when the app closes or you leave this screen. Start a new rest if you need one.",
+    "resumedDismiss": "Got it",
+    "agoUnderMinute": "less than a minute",
+    "agoMinutes": "{{m}} min",
+    "agoHours": "{{h}} h {{m}} min"
   },
   "library": {
     "title": "Exercise library",

@@ -14,6 +14,7 @@ import { errorMessageKey, type AppError } from '../domain/errors';
 import type { Exercise, SessionExercise, WorkoutSessionDetail } from '../domain/models';
 import { formatClock } from '../domain/restTimer';
 import type { Result } from '../domain/result';
+import { recoveryOf, shouldShowRecovery, splitMinutes, type Recovery } from '../domain/sessionRecovery';
 import { exerciseProgress, firstOpenIndex, hasUnsavedInput, sessionProgress } from '../domain/sessionProgress';
 import { nextDraft, planSet, summarizeSession, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
 import { summarizeTargets } from '../domain/templateSummary';
@@ -55,6 +56,7 @@ export default function SessionScreen() {
   const [saving, setSaving] = useState(false);
   const [focusId, setFocusId] = useState<number | null>(null); // the exercise shown in full; null = the first unfinished one
   const [leaveAsk, setLeaveAsk] = useState(false);
+  const [recovery, setRecovery] = useState<Recovery | null>(null); // what the database says about a workout opened with sets already logged; read once per opening
   const [message, setMessage] = useState<{ text: string; problem: boolean } | null>(null);
   // one write at a time: set synchronously so two taps in one frame can't both reach the database
   const lock = useRef(false);
@@ -84,6 +86,8 @@ export default function SessionScreen() {
         if (cancelled) return;
         if (!ex.ok) return setLoad({ status: 'failed', error: ex.error });
         setLoad({ status: 'ready', session: s.value, exercises: ex.value });
+        const r = recoveryOf(s.value, Date.now());
+        setRecovery(shouldShowRecovery(s.value, r) ? r : null);
       })();
       return () => {
         cancelled = true;
@@ -198,6 +202,7 @@ export default function SessionScreen() {
       () => repos!.sessions.addSet(se.id, plan.value),
       (set) => {
         setDrafts((cur) => { const { [se.id]: _gone, ...rest2 } = cur; return rest2; });
+        setRecovery(null); // new activity: the "welcome back" note has done its job
         say(t('liveSession.setLogged', { n: set.setNumber, summary: setSummary(t, tracking, set) }));
       },
       failed('liveSession.logFailed'),
@@ -230,6 +235,10 @@ export default function SessionScreen() {
   const foundIdx = focusId === null ? -1 : session.exercises.findIndex((e) => e.id === focusId);
   const focusedIdx = open ? (foundIdx >= 0 ? foundIdx : firstOpenIndex(session.exercises)) : -1;
   const stripItems = session.exercises.map((e, i) => ({ id: e.id, position: e.position, name: nameFor(e), progress: exerciseProgress(e), active: i === focusedIdx }));
+  const agoText = (minutes: number) => {
+    const { h, m } = splitMinutes(minutes);
+    return minutes < 1 ? t('liveSession.agoUnderMinute') : h > 0 ? t('liveSession.agoHours', { h, m }) : t('liveSession.agoMinutes', { m });
+  };
   const goTo = (id: number) => {
     const i = session.exercises.findIndex((e) => e.id === id);
     if (i < 0) return;
@@ -279,6 +288,22 @@ export default function SessionScreen() {
       {session.status === 'discarded' ? (
         <GlassCard strong style={styles.card}>
           <AppText size={13} color={colors.ink}>{t('liveSession.discardedNote')}</AppText>
+        </GlassCard>
+      ) : null}
+
+      {open && recovery && rest.timer.phase === 'idle' ? (
+        <GlassCard strong style={styles.card}>
+          <View role="group" accessibilityLabel={t('liveSession.resumedTitle')} style={styles.restBody}>
+            <AppText size={14} weight="semibold" color={colors.ink} accessibilityRole="header">{t('liveSession.resumedTitle')}</AppText>
+            <AppText size={12} color={colors.muted}>{t('liveSession.resumedBody')}</AppText>
+            {recovery.minutesSinceLastSet !== null ? (
+              <AppText size={12} color={colors.muted}>{t('liveSession.resumedLast', { time: agoText(recovery.minutesSinceLastSet) })}</AppText>
+            ) : null}
+            <AppText size={12} color={colors.muted}>{t('liveSession.resumedTimer')}</AppText>
+            <Pressable accessibilityRole="button" onPress={() => setRecovery(null)} style={[styles.btn, styles.ghost]}>
+              <AppText size={14} weight="medium" color={colors.dark} align="center">{t('liveSession.resumedDismiss')}</AppText>
+            </Pressable>
+          </View>
         </GlassCard>
       ) : null}
 
