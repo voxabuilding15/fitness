@@ -12,6 +12,7 @@ import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
 import { canStartFromTemplate, startFailureKey } from '../domain/sessionStart';
 import { targetSummary } from '../domain/templateSummary';
+import { workoutOverview } from '../domain/workoutOverview';
 import { uniqueCopyName } from '../domain/templateBuilder';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
 import { useRecommendations } from '../hooks/useRecommendations';
@@ -88,6 +89,7 @@ export default function TemplateDetailScreen() {
   }
 
   const byId = new Map(state.exercises.map((e) => [e.id, e]));
+  const overview = workoutOverview(template, byId);
   const repos = db.status === 'ready' ? db.repos : null;
   const failure = (e: AppError) => say(t(errorMessageKey(e)), true);
 
@@ -149,15 +151,24 @@ export default function TemplateDetailScreen() {
       <GlassCard strong style={styles.card}>
         <AppText size={20} weight="semibold" color={colors.ink} accessibilityRole="header">{template.name}</AppText>
         {template.notes ? <AppText size={13} color={colors.ink}>{template.notes}</AppText> : null}
-        <AppText size={12} color={colors.muted}>{t('templates.exerciseCount', { count: template.exercises.length })}</AppText>
+        <View role="group" accessibilityLabel={t('overview.title')} style={styles.overview}>
+          <AppText size={13} weight="medium" color={colors.ink} accessibilityRole="header">{t('overview.title')}</AppText>
+          <AppText size={12} color={colors.muted}>{t('overview.exercises', { count: overview.exerciseCount })}</AppText>
+          <AppText size={12} color={colors.muted}>{t('overview.sets', { count: overview.totalSets })}</AppText>
+          {overview.equipment.length ? <AppText size={12} color={colors.muted}>{t('overview.equipment', { items: overview.equipment.map((q) => t(`library.equipmentNames.${q}`)).join(', ') })}</AppText> : null}
+          {overview.mainMuscles.length ? <AppText size={12} color={colors.muted}>{t('overview.muscles', { items: overview.mainMuscles.map((m) => t(`library.muscles.${m}`)).join(', ') })}</AppText> : null}
+          {overview.supportingMuscles.length ? <AppText size={12} color={colors.muted}>{t('overview.supporting', { items: overview.supportingMuscles.map((m) => t(`library.muscles.${m}`)).join(', ') })}</AppText> : null}
+        </View>
         {template.exercises.map((e) => {
           const ex = byId.get(e.exerciseId);
           const name = ex ? nameOf(ex) : '';
           const hints = ex ? recs.notesOf(recs.assess(ex), false) : [];
+          const meta = ex ? `${t(`library.muscles.${ex.primaryMuscle}`)} · ${t(`library.equipmentNames.${ex.equipment}`)}` : '';
           return (
-            <View key={e.id} style={styles.item} accessible accessibilityLabel={[`${e.position}. ${name}`, targetSummary(t, e), ...hints].join(', ')}>
+            <View key={e.id} style={styles.item} accessible accessibilityLabel={[`${e.position}. ${name}`, targetSummary(t, e), meta, ...hints].filter(Boolean).join(', ')}>
               <AppText size={15} weight="medium" color={colors.ink}>{`${e.position}. ${name}`}</AppText>
               <AppText size={12} color={colors.muted}>{targetSummary(t, e)}</AppText>
+              {meta ? <AppText size={11} color={colors.muted}>{meta}</AppText> : null}
               <HintLines lines={hints} />
             </View>
           );
@@ -174,6 +185,7 @@ export default function TemplateDetailScreen() {
           <>
             <Pressable
               accessibilityRole="button"
+              accessibilityHint={t('overview.startHint')}
               accessibilityState={{ disabled: starting || !canStartFromTemplate(template), busy: starting }}
               disabled={starting || !canStartFromTemplate(template)}
               onPress={() => void start()}
@@ -184,7 +196,7 @@ export default function TemplateDetailScreen() {
             {!canStartFromTemplate(template) ? <AppText size={11} color={colors.onGradientMuted}>{t('liveSession.startEmpty')}</AppText> : null}
           </>
         )}
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/templates/form', params: { id: String(template.id) } })} style={[styles.btn, styles.btnGhost]}>
+        <Pressable accessibilityRole="button" accessibilityHint={t('overview.editHint')} onPress={() => router.push({ pathname: '/templates/form', params: { id: String(template.id) } })} style={[styles.btn, styles.btnGhost]}>
           <AppText size={14} weight="medium" color={colors.dark} align="center">{t('templates.edit')}</AppText>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={() => void duplicate()} style={[styles.btn, styles.btnGhost, busy && styles.dim]}>
@@ -224,6 +236,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   card: { padding: 16, gap: 12 },
   item: { gap: 2, paddingVertical: 4 },
+  overview: { gap: 3, paddingBottom: 6 },
   actions: { gap: 10 },
   btn: { minHeight: 48, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   btnPrimary: { backgroundColor: colors.dark },

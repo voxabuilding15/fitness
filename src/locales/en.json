@@ -307,6 +307,16 @@
     "disclaimer": "These hints are general and based only on the exercise library. They are not medical advice and do not guarantee that an exercise is safe for you.",
     "profileCoverage": "Checked: {{checked}}. Partly checked: {{partial}}. Not checked: {{none}}."
   },
+  "overview": {
+    "title": "Overview",
+    "exercises": "Exercises: {{count}}",
+    "sets": "Sets in total: {{count}}",
+    "equipment": "Equipment: {{items}}",
+    "muscles": "Main muscles: {{items}}",
+    "supporting": "Also works: {{items}}",
+    "startHint": "Begins a session with these exercises. The targets are copied into it.",
+    "editHint": "Change the exercises and targets before you start"
+  },
   "liveSession": {
     "startTitle": "Workout",
     "start": "Start workout",

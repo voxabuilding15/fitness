@@ -432,6 +432,104 @@ describe('TemplateFormScreen: selection, ordering and validation UX', () => {
   });
 });
 
+describe('TemplateDetailScreen: the overview before starting', () => {
+  const ov = en.overview;
+  const overviewTemplate = async () => {
+    const id = await ids();
+    return unwrap(await env.repos.templates.create({
+      name: 'Mixed',
+      exercises: [
+        { exerciseId: id('bench_press'), targetSets: 4, targetRepsMin: 6, restSec: 90 },
+        { exerciseId: id('overhead_press'), targetSets: 3, targetRepsMin: 8, restSec: 90 },
+        { exerciseId: id('plank'), targetSets: 2, targetDurationSec: 45, restSec: 30 },
+        { exerciseId: id('pull_up'), targetSets: 3, targetRepsMin: 5, restSec: 120 },
+      ],
+    }));
+  };
+
+  it('shows how many exercises and sets, the equipment, and the main and supporting muscles', async () => {
+    const t = await overviewTemplate();
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    expect(has(ov.title)).toBe(true);
+    expect(has('Exercises: 4')).toBe(true);
+    expect(has('Sets in total: 12')).toBe(true);
+    expect(has('Equipment: Barbell, Bodyweight')).toBe(true);
+    expect(has('Main muscles: Chest, Shoulders, Core, Back')).toBe(true);
+    expect(has('Also works: Triceps, Biceps, Forearms')).toBe(true); // shoulders is a main muscle here, so it is not repeated
+  });
+
+  it('each exercise shows its targets and its muscle and equipment', async () => {
+    const t = await overviewTemplate();
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    expect(rowNames()).toEqual(['1. Barbell bench press', '2. Barbell overhead press', '3. Plank', '4. Pull-up']);
+    expect(has('Chest · Barbell')).toBe(true);
+    expect(has('Core · Bodyweight')).toBe(true);
+    expect(has('2 × 45 s · rest 30 s')).toBe(true);
+    const row = tree.root.findAll((n: any) => n.props.accessible && String(n.props.accessibilityLabel ?? '').startsWith('3. Plank'))[0];
+    expect(row.props.accessibilityLabel).toBe('3. Plank, 2 × 45 s · rest 30 s, Core · Bodyweight');
+  });
+
+  it('offers Start as the main action, with Edit beside it, and neither changes the saved workout', async () => {
+    const t = await overviewTemplate();
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    const start = tree.root.findAll((n: any) => typeof n.props.onPress === 'function' && textOf(n) === en.liveSession.start)[0];
+    expect(start.props.accessibilityHint).toBe(ov.startHint);
+    const edit = tree.root.findAll((n: any) => typeof n.props.onPress === 'function' && textOf(n) === tpl.edit)[0];
+    expect(edit.props.accessibilityHint).toBe(ov.editHint);
+    await pressText(tpl.edit);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/templates/form', params: { id: String(t.id) } });
+    expect(unwrap(await env.repos.templates.get(t.id))).toEqual(t);
+  });
+
+  it('starting from the overview creates one real session whose exercises follow the overview, then opens it', async () => {
+    const t = await overviewTemplate();
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    await pressText(en.liveSession.start);
+    const active = unwrap(await env.repos.sessions.getActive())!;
+    expect(active.exercises.map((e) => e.exerciseId)).toEqual(t.exercises.map((e) => e.exerciseId));
+    expect(active.exercises.reduce((n, e) => n + (e.plan?.sets ?? 0), 0)).toBe(12);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/session/[id]', params: { id: String(active.id) } });
+    expect((await env.db.first<{ n: number }>('SELECT COUNT(*) n FROM workout_sessions'))!.n).toBe(1);
+  });
+
+  it('an exercise used twice adds its sets twice and lists its equipment once', async () => {
+    const id = await ids();
+    const t = unwrap(await env.repos.templates.create({ name: 'Twice', exercises: [
+      { exerciseId: id('pull_up'), targetSets: 3, targetRepsMin: 5, restSec: 60 }, { exerciseId: id('pull_up'), targetSets: 2, targetRepsMin: 8, restSec: 60 },
+    ] }));
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    expect(has('Exercises: 2')).toBe(true);
+    expect(has('Sets in total: 5')).toBe(true);
+    expect(has('Equipment: Bodyweight')).toBe(true);
+  });
+
+  it('a hidden exercise still appears in the overview with its details', async () => {
+    const t = await overviewTemplate();
+    const id = await ids();
+    unwrap(await env.repos.exercises.setArchived(id('plank'), true));
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    expect(has('3. Plank')).toBe(true);
+    expect(has('Core · Bodyweight')).toBe(true);
+  });
+
+  it('uses the Arabic strings and exercise names', async () => {
+    const t = await overviewTemplate();
+    mockLocale = 'ar';
+    mockParams = { id: String(t.id) };
+    await mount(TemplateDetailScreen);
+    expect(has(ar.overview.title)).toBe(true);
+    expect(has(`${ar.overview.exercises.replace('{{count}}', '4')}`)).toBe(true);
+    expect(has(`${ar.library.equipmentNames.barbell}`)).toBe(true);
+    expect(rowNames()[0]).toBe(`1. ${ar.exercises.benchPress}`);
+  });
+});
+
 describe('TemplateDetailScreen', () => {
   it('opens a saved workout showing its exercises in order with their targets', async () => {
     const t = await makeTemplate('Push day');

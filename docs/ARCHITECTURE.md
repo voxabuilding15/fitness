@@ -416,6 +416,14 @@ Saved workouts, the session flow, history and immutability are untouched; the sa
 
 **Tested (Node, mocks):** the new pure helpers, and the builder: live error clearing (name, exercises, a row's number, duplicate name), cancel behaviour (clean, reverted, dirty, edit mode, after save), picker filters and counts, the already-added mark, move to top/bottom and Arabic. **Not verified on a device:** layout, keyboard behaviour, screen-reader output, RTL.
 
+## 5o. Phase 4 - milestone 4.9: workout overview before starting
+
+**What it is.** A saved workout's detail screen (`/templates/[id]`) is now the overview shown before a session: an "Overview" block (exercises, sets in total, the equipment needed in order of first use, the main muscles most-used first, and the muscles that are only supporting ones), each exercise row with its targets and its main muscle and equipment, and the existing actions: Start (primary; "Resume" instead while a workout is in progress), Edit (back to the builder), Duplicate and Delete. `domain/workoutOverview.ts` computes the block from the template and its exercises; it estimates nothing (no duration, no calories). A row whose exercise cannot be found is counted but adds no equipment or muscles.
+
+**Reuse.** No new route, repository method or migration. Start is the same `sessions.start({ templateId })` flow from 4.1 (one-write lock, conflict handling, plan snapshot), so completed sessions remain immutable (migration 009) and an active session is still resumable. The overview and the Profile hints share the screen: caution and level notes appear under the exercises they apply to.
+
+**Tested (Node, mocks):** the pure overview (ordering, duplicate exercises, unknown rows, empty) and the screen: counts, equipment and muscle lists, per-row details and accessibility label, Start and Edit (with hints; neither changes the saved workout), one real session created with the overview's exercises and sets, a hidden exercise still shown, and Arabic. **Not verified on a device:** layout, screen-reader output, RTL.
+
 ## 6. Open product decisions and future work (documented, not changed)
 
 - **E6 warm-up-only workouts.** A completed session needs one completed set, and a completed warm-up counts. So a
