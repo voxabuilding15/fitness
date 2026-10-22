@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { AppHeader, goBack } from '../components/AppHeader';
 import { AppText } from '../components/AppText';
@@ -9,6 +9,7 @@ import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { SessionExerciseCard, fieldLabelKey, setSummary } from '../components/SessionExerciseCard';
 import { Bar, CompactExerciseRow, ExerciseStrip, ProgressCard } from '../components/SessionNavigation';
+import { WorkoutSummary } from '../components/WorkoutSummary';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
 import { canUseLast, draftFromLast } from '../domain/lastPerformance';
@@ -19,6 +20,7 @@ import { recoveryOf, shouldShowRecovery, splitMinutes, type Recovery } from '../
 import { exerciseProgress, firstOpenIndex, hasUnsavedInput, sessionProgress } from '../domain/sessionProgress';
 import { nextDraft, planSet, summarizeSession, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
 import { summarizeTargets } from '../domain/templateSummary';
+import { exerciseResults } from '../domain/workoutResults';
 import { useExerciseName } from '../hooks/useExerciseLibrary';
 import { useRecommendations } from '../hooks/useRecommendations';
 import { useRestTimer } from '../hooks/useRestTimer';
@@ -282,14 +284,22 @@ export default function SessionScreen() {
       </GlassCard>
 
       {session.status === 'completed' ? (
-        <GlassCard strong style={styles.card}>
-          <AppText size={16} weight="semibold" color={colors.ink} accessibilityRole="header">{t('liveSession.summaryTitle')}</AppText>
-          <AppText size={14} color={colors.ink}>{t('liveSession.summarySets', { count: summary.loggedSets })}</AppText>
-          <AppText size={14} color={colors.ink}>{t('liveSession.summaryExercises', { done: summary.exercisesWithSets, total: summary.exerciseCount })}</AppText>
-          {summary.totalReps > 0 ? <AppText size={14} color={colors.ink}>{t('liveSession.summaryReps', { count: summary.totalReps })}</AppText> : null}
-          {summary.volumeKg > 0 ? <AppText size={14} color={colors.ink}>{t('liveSession.summaryVolume', { kg: summary.volumeKg })}</AppText> : null}
-          {summary.durationMin !== null ? <AppText size={14} color={colors.ink}>{t('liveSession.summaryTime', { minutes: summary.durationMin })}</AppText> : null}
-        </GlassCard>
+        <WorkoutSummary
+          summary={summary}
+          progress={progress}
+          rows={exerciseResults(session.exercises, trackingOf).map((result, i) => ({
+            id: result.sessionExerciseId, position: result.position, name: nameFor(session.exercises[i]), tracking: trackingOf(session.exercises[i]), result, plannedSets: session.exercises[i].plan?.sets ?? null,
+          }))}
+          rpe={session.rpe}
+          busy={saving}
+          onEffort={(value) => void write(
+            () => repos!.sessions.updateDetails(session.id, { rpe: value }),
+            () => say(value === null ? t('liveSession.effortCleared') : t('liveSession.effortSaved', { value })),
+            failed('liveSession.effortFailed'),
+          )}
+          onHome={() => router.replace('/')}
+          onHistory={() => router.push('/history')}
+        />
       ) : null}
       {session.status === 'discarded' ? (
         <GlassCard strong style={styles.card}>

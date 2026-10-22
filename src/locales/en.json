@@ -428,7 +428,20 @@
     "lastTime": "Last time ({{date}}):",
     "lastMore": "{{count}} more",
     "lastUse": "Use last values",
-    "lastUsed": "Filled in from last time. Check the numbers, then log the set."
+    "lastUsed": "Filled in from last time. Check the numbers, then log the set.",
+    "noSetsLogged": "No sets logged.",
+    "summaryHighlights": "Highlights",
+    "summaryBest": "Best set: {{summary}}",
+    "summaryNotDone": "Not done: {{names}}",
+    "effortTitle": "How hard was it?",
+    "effortHint": "Optional. 1 is very easy, 10 is maximum effort.",
+    "effortValue": "Effort: {{value}} of 10. Tap the same number to clear it.",
+    "effortOption": "Effort {{value}}",
+    "effortSaved": "Effort saved: {{value}} of 10.",
+    "effortCleared": "Effort cleared.",
+    "effortFailed": "Could not save the effort.",
+    "goHome": "Back to Home",
+    "goHistory": "Workout history"
   },
   "library": {
     "title": "Exercise library",

@@ -532,7 +532,7 @@ describe('progress and moving between exercises', () => {
     await press(byText(ls.finish));
     await press(byText(ls.finishYes));
     expect(tabs()).toHaveLength(0);
-    expect(rowNames()).toEqual(['1. Barbell bench press', '2. Plank', '3. Running']);
+    expect(rowNames().slice(-3)).toEqual(['1. Barbell bench press', '2. Plank', '3. Running']); // the full cards (the highlights above list the same names)
     expect(has(ls.prevExercise)).toBe(false);
   });
 });
@@ -806,6 +806,123 @@ describe('last time reference', () => {
     mockLocale = 'ar';
     await mount();
     expect(has(ar.liveSession.lastTime.replace('{{date}}', '2026-10-21'))).toBe(true);
+  });
+});
+
+describe('post-workout summary and completion flow', () => {
+  const finishWithTwoBenchSets = async () => {
+    await makeSession();
+    await mount();
+    await logBench('80', '8');
+    await logBench('85', '5');
+    await press(byText(ls.finish));
+    await press(byText(ls.finishYes));
+  };
+
+  it('shows the key results from the saved sets: totals, plan completion, best set per exercise and what was skipped', async () => {
+    await finishWithTwoBenchSets();
+    expect(has(ls.summaryTitle)).toBe(true);
+    expect(has('Sets logged: 2')).toBe(true);
+    expect(has('Sets: 2 of 6')).toBe(true); // 3 + 2 + 1 planned
+    expect(has('Exercises done: 1 of 3')).toBe(true);
+    expect(has('Total weight lifted: 1065 kg')).toBe(true);
+    expect(has(ls.summaryHighlights)).toBe(true);
+    expect(has('Best set: 85 kg × 5 · Sets 2 of 3')).toBe(true);
+    expect(has('Not done: Plank, Running')).toBe(true);
+    expect(has(ls.noSetsLogged)).toBe(true);
+    expect(has('Personal')).toBe(false); // nothing claims a record
+  });
+
+  it('a session without a plan shows logged counts only', async () => {
+    const all = unwrap(await env.repos.exercises.list({ includeArchived: true }));
+    const bench = all.find((e) => e.slug === 'bench_press')!;
+    const s = unwrap(await env.repos.sessions.start({ name: 'Free', exerciseIds: [bench.id] }));
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { weightKg: 70, reps: 6, isCompleted: true }));
+    unwrap(await env.repos.sessions.complete(s.id));
+    mockParams = { id: String(s.id) };
+    await mount();
+    expect(has('Sets logged: 1')).toBe(true);
+    expect(allText().some((x: string) => /Sets: \d+ of \d+/.test(x))).toBe(false);
+    expect(has('Best set: 70 kg × 6 · Sets logged 1')).toBe(true);
+    expect(allText().some((x: string) => x.includes('Not done'))).toBe(false);
+  });
+
+  it('effort can be set, changed and cleared; it is saved on the completed workout', async () => {
+    await finishWithTwoBenchSets();
+    const id = Number(mockParams.id);
+    const rpe = async () => unwrap(await env.repos.sessions.get(id)).rpe;
+    expect(has(ls.effortHint)).toBe(true);
+    await press(byLabel('Effort 7'));
+    expect(await rpe()).toBe(7);
+    expect(has('Effort: 7 of 10')).toBe(true);
+    expect(announced).toContain('Effort saved: 7 of 10.');
+    await press(byLabel('Effort 9'));
+    expect(await rpe()).toBe(9);
+    await press(byLabel('Effort 9')); // the same number again clears it
+    expect(await rpe()).toBeNull();
+    expect(announced).toContain(ls.effortCleared);
+    expect(unwrap(await env.repos.sessions.get(id)).status).toBe('completed');
+  });
+
+  it('a failed effort save says so and leaves the saved value alone; sets stay immutable', async () => {
+    await finishWithTwoBenchSets();
+    const id = Number(mockParams.id);
+    act(() => tree.unmount());
+    await mount({ status: 'ready', repos: withSessions({ updateDetails: async () => ({ ok: false, error: { kind: 'database', message: 'x' } }) }) });
+    await press(byLabel('Effort 5'));
+    expect(has(ls.effortFailed)).toBe(true);
+    expect(unwrap(await env.repos.sessions.get(id)).rpe).toBeNull();
+    expect((await dbSets())).toHaveLength(2);
+  });
+
+  it('opens an earlier workout with its saved effort selected', async () => {
+    await finishWithTwoBenchSets();
+    const id = Number(mockParams.id);
+    unwrap(await env.repos.sessions.updateDetails(id, { rpe: 6 }));
+    act(() => tree.unmount());
+    await mount();
+    expect(has('Effort: 6 of 10')).toBe(true);
+    expect(byLabel('Effort 6')[0].props.accessibilityState.selected).toBe(true);
+  });
+
+  it('offers a way back to Home and to the workout history', async () => {
+    await finishWithTwoBenchSets();
+    mockReplace.mockReset();
+    mockPush.mockReset();
+    await press(byText(ls.goHome));
+    expect(mockReplace).toHaveBeenCalledWith('/');
+    await press(byText(ls.goHistory));
+    expect(mockPush).toHaveBeenCalledWith('/history');
+  });
+
+  it('is not shown while the workout is running or after it was discarded', async () => {
+    const s = await makeSession();
+    await mount();
+    expect(has(ls.summaryHighlights)).toBe(false);
+    expect(byText(ls.goHome)).toHaveLength(0);
+    await logBench();
+    await press(byText(ls.discard));
+    await press(byText(ls.discardYes));
+    act(() => tree.unmount());
+    mockParams = { id: String(s.id) };
+    await mount();
+    expect(has(ls.summaryHighlights)).toBe(false);
+    expect(byText(ls.goHome)).toHaveLength(0);
+  });
+
+  it('Arabic uses the Arabic strings', async () => {
+    await makeSession();
+    mockLocale = 'ar';
+    await mount();
+    const bench = ar.exercises.benchPress;
+    await type(`${ar.liveSession.weightKg}, ${bench}`, '80');
+    await type(`${ar.liveSession.reps}, ${bench}`, '8');
+    await press(byLabel(`${ar.liveSession.logSet}: ${bench}, ${ar.liveSession.setNumber.replace('{{n}}', '1')}`));
+    await press(byText(ar.liveSession.finish));
+    await press(byText(ar.liveSession.finishYes));
+    expect(has(ar.liveSession.summaryHighlights)).toBe(true);
+    expect(has(ar.liveSession.goHome)).toBe(true);
+    expect(byLabel(ar.liveSession.effortOption.replace('{{value}}', '7'))).toHaveLength(1);
   });
 });
 

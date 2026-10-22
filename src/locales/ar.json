@@ -428,7 +428,20 @@
     "lastTime": "المرة الماضية ({{date}}):",
     "lastMore": "{{count}} أخرى",
     "lastUse": "استخدم القيم السابقة",
-    "lastUsed": "تمت التعبئة من المرة الماضية. راجع الأرقام ثم سجّل المجموعة."
+    "lastUsed": "تمت التعبئة من المرة الماضية. راجع الأرقام ثم سجّل المجموعة.",
+    "noSetsLogged": "لم تُسجَّل أي مجموعة.",
+    "summaryHighlights": "أبرز النتائج",
+    "summaryBest": "أفضل مجموعة: {{summary}}",
+    "summaryNotDone": "لم يُنفَّذ: {{names}}",
+    "effortTitle": "ما مدى صعوبته؟",
+    "effortHint": "اختياري. 1 سهل جداً و10 أقصى جهد.",
+    "effortValue": "الجهد: {{value}} من 10. اضغط الرقم نفسه لإزالته.",
+    "effortOption": "الجهد {{value}}",
+    "effortSaved": "تم حفظ الجهد: {{value}} من 10.",
+    "effortCleared": "تمت إزالة الجهد.",
+    "effortFailed": "تعذّر حفظ الجهد.",
+    "goHome": "العودة إلى الرئيسية",
+    "goHistory": "سجل التمارين"
   },
   "library": {
     "title": "مكتبة التمارين",

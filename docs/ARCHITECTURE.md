@@ -501,3 +501,16 @@ Audit of the active session: set entry started from your own last set within the
 The card shows "Last time (date): 85 kg x 5 . 85 kg x 4" (at most five sets, the rest counted) while the workout is in progress. "Use last values" fills the entry fields from last time's last working set (a warm-up only when there was nothing else). It never logs: the numbers are ordinary typed-but-unlogged input, so the leave-guard protects them and the person still taps Log set. The button appears only while nothing is logged for that exercise in this workout and nothing is typed, so it cannot overwrite anything. The reference is an aid: if it cannot be read, the screen works without it. Finished workouts do not show it.
 
 Not done on purpose: no automatic prefill (a silent prefill could be logged unchecked), no progression suggestions or personal-record claims (that would need a defined, tested rule).
+
+## 5s. Phase 4 - milestone 4.13: post-workout summary and completion flow
+
+Audit: finishing already ended the workout in place and showed totals (sets, exercises, reps, volume, time) from the saved sets, with the full exercise cards below. Missing: how the workout compared with its own plan, what was skipped, a quick per-exercise read, any way to record how hard it was (the model has `rpe` and `updateDetails` already allows it on completed workouts), and a clear way onward.
+
+`WorkoutSummary` (shown for completed workouts only, so also when one is opened from history) adds, all from saved data:
+- planned sets done ("Sets: 2 of 6") - only when EVERY exercise has a plan snapshot, as for the progress bar;
+- "Not done: ..." naming exercises with no logged set (a partly done workout; a workout with no sets cannot be completed at all);
+- Highlights: per exercise its best set OF THIS WORKOUT (`domain/workoutResults.ts`: heaviest for weight x reps, most reps, longest, farthest; the earliest set wins an exact tie; warm-ups and unfinished sets never count) and its sets count;
+- an optional effort rating 1-10 (tap the same number again to clear), saved with `sessions.updateDetails`; a failure is said out loud and nothing changes;
+- "Back to Home" (`router.replace('/')`) and "Workout history".
+
+Deliberately not there: personal records or any comparison with history (the data model has no defined rule for them), calories (`est_kcal` has no estimator yet, so it stays null and is not shown), muscle-group splits. Sets stay immutable after completion; only the workout's own effort rating changes.
