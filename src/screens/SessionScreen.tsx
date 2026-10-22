@@ -11,7 +11,8 @@ import { SessionExerciseCard, fieldLabelKey, setSummary } from '../components/Se
 import { Bar, CompactExerciseRow, ExerciseStrip, ProgressCard } from '../components/SessionNavigation';
 import { useDatabase } from '../context/DatabaseContext';
 import { errorMessageKey, type AppError } from '../domain/errors';
-import type { Exercise, SessionExercise, WorkoutSessionDetail } from '../domain/models';
+import { canUseLast, draftFromLast } from '../domain/lastPerformance';
+import type { Exercise, LastPerformance, SessionExercise, WorkoutSessionDetail } from '../domain/models';
 import { formatClock } from '../domain/restTimer';
 import type { Result } from '../domain/result';
 import { recoveryOf, shouldShowRecovery, splitMinutes, type Recovery } from '../domain/sessionRecovery';
@@ -56,6 +57,7 @@ export default function SessionScreen() {
   const [saving, setSaving] = useState(false);
   const [focusId, setFocusId] = useState<number | null>(null); // the exercise shown in full; null = the first unfinished one
   const [leaveAsk, setLeaveAsk] = useState(false);
+  const [lastBy, setLastBy] = useState<Record<number, LastPerformance>>({}); // an aid only: if it cannot be read, the screen works without it
   const [recovery, setRecovery] = useState<Recovery | null>(null); // what the database says about a workout opened with sets already logged; read once per opening
   const [message, setMessage] = useState<{ text: string; problem: boolean } | null>(null);
   // one write at a time: set synchronously so two taps in one frame can't both reach the database
@@ -86,6 +88,10 @@ export default function SessionScreen() {
         if (cancelled) return;
         if (!ex.ok) return setLoad({ status: 'failed', error: ex.error });
         setLoad({ status: 'ready', session: s.value, exercises: ex.value });
+        if (s.value.status === 'in_progress') {
+          const lp = await repos.sessions.lastPerformance(s.value.exercises.map((e) => e.exerciseId));
+          if (!cancelled) setLastBy(lp.ok ? lp.value : {});
+        }
         const r = recoveryOf(s.value, Date.now());
         setRecovery(shouldShowRecovery(s.value, r) ? r : null);
       })();
@@ -352,6 +358,16 @@ export default function SessionScreen() {
               planned={se.plan ? summarizeTargets(t, se.plan) : null}
               hints={byId.get(se.exerciseId) ? recs.notesOf(recs.assess(byId.get(se.exerciseId)!), false) : []}
               sets={se.sets}
+              last={open && lastBy[se.exerciseId] ? {
+                date: lastBy[se.exerciseId].localDate,
+                sets: lastBy[se.exerciseId].sets,
+                canUse: canUseLast(draftFor(se), se.sets.filter((x) => x.isCompleted).length),
+                onUse: () => {
+                  setDrafts((cur) => ({ ...cur, [se.id]: draftFromLast(trackingOf(se), lastBy[se.exerciseId]) }));
+                  setIssues((cur) => ({ ...cur, [se.id]: {} }));
+                  announce(t('liveSession.lastUsed'));
+                },
+              } : undefined}
               entry={open ? {
                 draft: draftFor(se), issues: issues[se.id] ?? {}, saving,
                 onChange: (field, value) => { setDrafts((cur) => ({ ...cur, [se.id]: { ...draftFor(se), [field]: value } })); setIssues((cur) => ({ ...cur, [se.id]: { ...cur[se.id], [field]: undefined } })); },

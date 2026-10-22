@@ -424,7 +424,11 @@
     "resumedDismiss": "Got it",
     "agoUnderMinute": "less than a minute",
     "agoMinutes": "{{m}} min",
-    "agoHours": "{{h}} h {{m}} min"
+    "agoHours": "{{h}} h {{m}} min",
+    "lastTime": "Last time ({{date}}):",
+    "lastMore": "{{count}} more",
+    "lastUse": "Use last values",
+    "lastUsed": "Filled in from last time. Check the numbers, then log the set."
   },
   "library": {
     "title": "Exercise library",

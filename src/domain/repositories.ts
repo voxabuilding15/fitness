@@ -1,5 +1,5 @@
 import type {
-  DailyActivity, DailyTotals, Exercise, Food, Goals, Habit, HabitLog, MealEntry, Profile, SessionExercise, SessionSet, WaterDay, WaterEntry,
+  DailyActivity, DailyTotals, Exercise, Food, Goals, Habit, HabitLog, LastPerformance, MealEntry, Profile, SessionExercise, SessionSet, WaterDay, WaterEntry,
   WeightEntry, WorkoutSession, WorkoutSessionDetail, WorkoutTemplate,
 } from './models';
 import type { Result } from './result';
@@ -85,6 +85,11 @@ export interface SessionRepository {
   /** Distinct local dates with at least one COMPLETED session (discarded / in-progress are excluded). */
   completedDates(range: DateRange): Promise<Result<string[]>>;
   countCompleted(range: DateRange): Promise<Result<number>>;
+  /**
+   * For each given exercise, its completed sets from the most recent COMPLETED workout that logged any (in-progress and discarded
+   * workouts never count). Exercises never done before are simply absent from the result.
+   */
+  lastPerformance(exerciseIds: number[]): Promise<Result<Record<number, LastPerformance>>>;
   /** Per-day totals for the statistics screen, from COMPLETED sessions only (discarded and in-progress never count). Days with no activity are omitted. */
   dailyActivity(range: DateRange): Promise<Result<DailyActivity[]>>;
 }

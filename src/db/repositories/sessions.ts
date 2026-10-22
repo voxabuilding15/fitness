@@ -1,5 +1,5 @@
 import { DbError } from '../../domain/errors';
-import type { SessionExercise, SessionSet, WorkoutSession, WorkoutSessionDetail } from '../../domain/models';
+import type { LastPerformance, SessionExercise, SessionSet, WorkoutSession, WorkoutSessionDetail } from '../../domain/models';
 import type { SessionRepository } from '../../domain/repositories';
 import { err } from '../../domain/result';
 import {
@@ -278,6 +278,23 @@ export function createSessionRepository(ctx: RepoContext): SessionRepository {
       return guard(async () => (await ctx.db.all<{ local_date: string }>(
         "SELECT DISTINCT local_date FROM workout_sessions WHERE status='completed' AND local_date BETWEEN ? AND ? ORDER BY local_date", [r.value.from, r.value.to])).map((x) => x.local_date));
     },
+    lastPerformance: (exerciseIds) => guard(async () => {
+      const out: Record<number, LastPerformance> = {};
+      for (const exerciseId of [...new Set(exerciseIds)].filter((n) => Number.isInteger(n) && n > 0).slice(0, 100)) {
+        const hit = await ctx.db.first<{ id: number; local_date: string }>(
+          `SELECT ws.id, ws.local_date FROM workout_sessions ws
+             JOIN session_exercises se ON se.session_id=ws.id
+             JOIN session_sets ss ON ss.session_exercise_id=se.id
+            WHERE ws.status='completed' AND se.exercise_id=? AND ss.is_completed=1
+            ORDER BY ws.started_at DESC, ws.id DESC LIMIT 1`, [exerciseId]);
+        if (!hit) continue;
+        const sets = await ctx.db.all<SetRow>(
+          `SELECT ss.* FROM session_sets ss JOIN session_exercises se ON se.id=ss.session_exercise_id
+            WHERE se.session_id=? AND se.exercise_id=? AND ss.is_completed=1 ORDER BY se.position, ss.set_number`, [hit.id, exerciseId]);
+        out[exerciseId] = { sessionId: hit.id, localDate: hit.local_date, sets: sets.map(toSet) };
+      }
+      return out;
+    }),
     async dailyActivity(range) {
       const r = parseInput(dateRangeInput, range);
       if (!r.ok) return err(r.error);

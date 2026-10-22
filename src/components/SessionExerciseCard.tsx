@@ -7,6 +7,7 @@ import { GlassCard } from './GlassCard';
 import { HintLines } from './HintsCard';
 import type { SessionSet } from '../domain/models';
 import type { TrackingType } from '../domain/schemas/enums';
+import { listedSets } from '../domain/lastPerformance';
 import { fieldsFor, type SetDraft, type SetField, type SetIssues } from '../domain/setEntry';
 import { colors, radius } from '../theme';
 
@@ -36,6 +37,8 @@ interface Props {
   /** Short hints from the Profile settings (caution areas), shown under the name. */
   hints?: string[];
   sets: SessionSet[];
+  /** What was logged for this exercise in the most recent completed workout; absent when it was never done (or while the workout has ended). */
+  last?: { date: string; sets: SessionSet[]; canUse: boolean; onUse: () => void };
   /** null = this card is read-only (the workout has ended). */
   entry: null | {
     draft: SetDraft; issues: SetIssues; saving: boolean; onChange: (field: SetField, value: string) => void; onLog: () => void;
@@ -44,7 +47,7 @@ interface Props {
   };
 }
 
-export function SessionExerciseCard({ position, name, tracking, planned, hints = [], sets, entry }: Props) {
+export function SessionExerciseCard({ position, name, tracking, planned, hints = [], sets, last, entry }: Props) {
   const { t } = useTranslation();
   const logged = sets.filter((s) => s.isCompleted);
   return (
@@ -53,6 +56,24 @@ export function SessionExerciseCard({ position, name, tracking, planned, hints =
         <AppText size={16} weight="semibold" color={colors.ink} accessibilityRole="header">{`${position}. ${name}`}</AppText>
         {planned ? <AppText size={12} color={colors.muted}>{t('liveSession.planned', { summary: planned })}</AppText> : null}
         <HintLines lines={hints} />
+        {last && last.sets.length > 0 ? (
+          <View role="group" accessibilityLabel={t('liveSession.lastTime', { date: last.date })} style={styles.last}>
+            <AppText size={12} weight="medium" color={colors.ink}>{t('liveSession.lastTime', { date: last.date })}</AppText>
+            {(() => {
+              const { shown, more } = listedSets(last.sets);
+              return (
+                <AppText size={12} color={colors.muted}>
+                  {shown.map((s) => setSummary(t, tracking, s)).join(' · ')}{more > 0 ? ` · ${t('liveSession.lastMore', { count: more })}` : ''}
+                </AppText>
+              );
+            })()}
+            {last.canUse ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`${t('liveSession.lastUse')}: ${name}`} onPress={last.onUse} style={[styles.small, styles.useLast]}>
+                <AppText size={12} weight="medium" color={colors.dark}>{t('liveSession.lastUse')}</AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {logged.length === 0 ? <AppText size={12} color={colors.muted}>{t('liveSession.noSets')}</AppText> : null}
         {logged.map((s) => (
@@ -120,6 +141,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   card: { padding: 16 },
   body: { gap: 10 },
+  last: { gap: 4, alignItems: 'flex-start' },
+  useLast: { alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(0,0,0,0.12)' },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   confirm: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   fields: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },

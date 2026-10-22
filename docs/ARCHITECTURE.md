@@ -491,3 +491,13 @@ What survives an app restart, and what does not, is decided by where the state l
 **Reopen note (`domain/sessionRecovery.ts`):** an in-progress session with logged sets shows a "Welcome back" note on opening, with "Last set logged: N min ago" taken from the newest saved `completed_at`, and the sentence that the rest timer does not carry over. If the device clock reads earlier than the saved time (a clock change) the duration line is left out rather than guessed. The note is read once per opening, so it does not turn into "just now" after a new set; it goes away on "Got it", on logging a set, or when a rest timer is running. The note also appears when the person leaves this screen and comes back in the same run, which is accurate: the timer is held by the screen.
 
 **Device-only, not verified here:** a real process kill on iOS/Android, background / foreground timing, the Expo SQLite native driver's durability under a kill, screen-reader output, layout and RTL. Arabic wording needs a native review.
+
+## 5r. Phase 4 - milestone 4.12: "last time" while logging
+
+Audit of the active session: set entry started from your own last set within the workout, but the FIRST set of every exercise started empty, so the person had to remember (or look up in history) what they lifted last time.
+
+`sessions.lastPerformance(exerciseIds)` returns, per exercise, the completed sets from the most recent COMPLETED workout that logged any of that exercise (in-progress and discarded workouts never count; a newer workout that included the exercise but logged nothing for it is skipped; exercises never done are absent). It reads existing tables only - no migration, no stored copy, nothing seeded.
+
+The card shows "Last time (date): 85 kg x 5 . 85 kg x 4" (at most five sets, the rest counted) while the workout is in progress. "Use last values" fills the entry fields from last time's last working set (a warm-up only when there was nothing else). It never logs: the numbers are ordinary typed-but-unlogged input, so the leave-guard protects them and the person still taps Log set. The button appears only while nothing is logged for that exercise in this workout and nothing is typed, so it cannot overwrite anything. The reference is an aid: if it cannot be read, the screen works without it. Finished workouts do not show it.
+
+Not done on purpose: no automatic prefill (a silent prefill could be logged unchecked), no progression suggestions or personal-record claims (that would need a defined, tested rule).

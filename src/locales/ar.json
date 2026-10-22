@@ -424,7 +424,11 @@
     "resumedDismiss": "حسناً",
     "agoUnderMinute": "أقل من دقيقة",
     "agoMinutes": "{{m}} د",
-    "agoHours": "{{h}} س {{m}} د"
+    "agoHours": "{{h}} س {{m}} د",
+    "lastTime": "المرة الماضية ({{date}}):",
+    "lastMore": "{{count}} أخرى",
+    "lastUse": "استخدم القيم السابقة",
+    "lastUsed": "تمت التعبئة من المرة الماضية. راجع الأرقام ثم سجّل المجموعة."
   },
   "library": {
     "title": "مكتبة التمارين",

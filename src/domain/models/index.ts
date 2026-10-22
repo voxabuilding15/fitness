@@ -133,6 +133,12 @@ export interface DailyActivity {
 export interface WorkoutSessionDetail extends WorkoutSession {
   exercises: SessionExercise[];
 }
+/** What was logged for one exercise the last time a COMPLETED workout included it (its completed sets, in order). */
+export interface LastPerformance {
+  sessionId: number;
+  localDate: string;
+  sets: SessionSet[];
+}
 
 export interface Food {
   id: number;

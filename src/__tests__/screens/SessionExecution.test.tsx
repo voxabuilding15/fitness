@@ -723,6 +723,92 @@ describe('reopening a workout with sets already logged', () => {
   });
 });
 
+describe('last time reference', () => {
+  const doneBefore = async () => {
+    const all = unwrap(await env.repos.exercises.list({ includeArchived: true }));
+    const bench = all.find((e) => e.slug === 'bench_press')!;
+    const old = unwrap(await env.repos.sessions.start({ name: 'Old', exerciseIds: [bench.id] }));
+    unwrap(await env.repos.sessions.addSet(old.exercises[0].id, { weightKg: 85, reps: 5, isCompleted: true }));
+    unwrap(await env.repos.sessions.addSet(old.exercises[0].id, { weightKg: 85, reps: 4, isCompleted: true }));
+    unwrap(await env.repos.sessions.complete(old.id));
+    env.clock.advance(86_400_000);
+  };
+
+  const logFirst = async (w = '80', r = '8') => {
+    await type(`${ls.weightKg}, ${BENCH}`, w);
+    await type(`${ls.reps}, ${BENCH}`, r);
+    await press(byLabel(logLabel(BENCH, 1)));
+  };
+
+  it('shows what was done last time for an exercise, and nothing for one that was never done', async () => {
+    await doneBefore();
+    await makeSession();
+    await mount();
+    expect(has('Last time (2026-10-21):')).toBe(true);
+    expect(has('85 kg × 5 · 85 kg × 4')).toBe(true);
+    await focusExercise(2);
+    expect(allText().some((x: string) => x.includes('Last time'))).toBe(false);
+  });
+
+  it('"Use last values" only fills in the numbers: nothing is logged until Log set, and unlogged numbers are protected like any typed ones', async () => {
+    await doneBefore();
+    await makeSession();
+    await mount();
+    expect(mockHeaderBack).toBeUndefined();
+    await press(byLabel(`${ls.lastUse}: ${BENCH}`));
+    expect(input(`${ls.weightKg}, ${BENCH}`).props.value).toBe('85');
+    expect(input(`${ls.reps}, ${BENCH}`).props.value).toBe('4');
+    expect(announced).toContain(ls.lastUsed);
+    expect(await dbSets()).toHaveLength(2); // only last time's two sets - nothing new
+    expect(mockHeaderBack).toBeDefined();
+    expect(byLabel(`${ls.lastUse}: ${BENCH}`)).toHaveLength(0); // already filled in
+    await press(byLabel(logLabel(BENCH, 1)));
+    const rows = await dbSets();
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toMatchObject({ weight_kg: 85, reps: 4, set_number: 1 });
+    expect(has('Last time (2026-10-21):')).toBe(true); // still the reference, from the finished workout
+  });
+
+  it('is not offered once typing has started or a set is logged', async () => {
+    await doneBefore();
+    await makeSession();
+    await mount();
+    await type(`${ls.reps}, ${BENCH}`, '7');
+    expect(byLabel(`${ls.lastUse}: ${BENCH}`)).toHaveLength(0);
+    await type(`${ls.reps}, ${BENCH}`, '');
+    await type(`${ls.weightKg}, ${BENCH}`, '');
+    expect(byLabel(`${ls.lastUse}: ${BENCH}`)).toHaveLength(1);
+    await logFirst('90', '5');
+    expect(byLabel(`${ls.lastUse}: ${BENCH}`)).toHaveLength(0);
+  });
+
+  it('the screen works the same when the reference cannot be read', async () => {
+    await doneBefore();
+    await makeSession();
+    await mount({ status: 'ready', repos: withSessions({ lastPerformance: async () => ({ ok: false, error: { kind: 'database', message: 'x' } }) }) });
+    expect(allText().some((x: string) => x.includes('Last time'))).toBe(false);
+    await logFirst();
+    expect(await dbSets()).toHaveLength(3);
+  });
+
+  it('is not shown on a finished workout', async () => {
+    await doneBefore();
+    const s = await makeSession();
+    unwrap(await env.repos.sessions.addSet(s.exercises[0].id, { weightKg: 90, reps: 5, isCompleted: true }));
+    unwrap(await env.repos.sessions.complete(s.id));
+    await mount();
+    expect(allText().some((x: string) => x.includes('Last time'))).toBe(false);
+  });
+
+  it('Arabic uses the Arabic strings', async () => {
+    await doneBefore();
+    await makeSession();
+    mockLocale = 'ar';
+    await mount();
+    expect(has(ar.liveSession.lastTime.replace('{{date}}', '2026-10-21'))).toBe(true);
+  });
+});
+
 describe('wording', () => {
   it('no new English or Arabic string puts a number directly before a counted noun, so "1 sets" cannot occur', () => {
     const bad = /\{\{(count|done|total|reps|n)\}\}\s*(sets?|reps?|exercises?|workouts?|تكرار|مجموعة|مجموعات|تمارين|تمرين)/;
